@@ -1,6 +1,5 @@
 package com.ci2.api_authci.util;
 
-
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.HandlerMethod;
@@ -12,10 +11,23 @@ import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 通用工具类
+ * Common Utility Class
+ * 
+ * 该类提供了一些通用的工具方法，如字符串处理、时间解析等
+ * This class provides some common utility methods, such as string processing, time parsing, etc.
+ */
 public class MUtils {
 
+    // 时间单位映射
+    // Time unit mapping
     private static HashMap<String, Long> timeUnits;
 
+    /**
+     * 初始化时间单位映射
+     * Initialize time unit mapping
+     */
     private static void initTimeUnits() {
         timeUnits = new HashMap<>();
         timeUnits.put("ms", 1L);
@@ -27,29 +39,68 @@ public class MUtils {
         timeUnits.put("y", timeUnits.get("d") * 365);
     }
 
-
+    /**
+     * 判断字符串是否为空
+     * Judge whether string is empty
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 是否为空
+     * @return whether is empty
+     */
     public static boolean isEmpty(String s) {
         return s == null || s.length() == 0;
     }
 
+    /**
+     * 判断字符串是否不为空
+     * Judge whether string is not empty
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 是否不为空
+     * @return whether is not empty
+     */
     public static boolean isNotEmpty(String s) {
         return !isEmpty(s);
     }
 
+    /**
+     * 判断字符串是否为空白
+     * Judge whether string is blank
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 是否为空白
+     * @return whether is blank
+     */
     public static boolean isBlank(String s) {
         return isEmpty(s) || s.trim().length() == 0;
     }
 
+    /**
+     * 判断字符串是否不为空白
+     * Judge whether string is not blank
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 是否不为空白
+     * @return whether is not blank
+     */
     public static boolean isNotBlank(String s) {
         return !isBlank(s);
     }
 
     /**
-     * @param s format 1ms 1s 1m 1h 1d 1M 1y
-     * @return
+     * 解析时间字符串为毫秒
+     * Parse time string to milliseconds
+     * 
+     * @param s 时间字符串，格式如 1ms 1s 1m 1h 1d 1M 1y
+     * @param s time string, format like 1ms 1s 1m 1h 1d 1M 1y
+     * @return 毫秒数
+     * @return milliseconds
      */
     public static long parseTimeToMs(String s) {
-
         if (isEmpty(s)) {
             throw new RuntimeException("not a format time");
         }
@@ -62,8 +113,20 @@ public class MUtils {
         return Long.parseLong(timeS[0]) * unit;
     }
 
+    /**
+     * 截取字符串
+     * Substring
+     * 
+     * @param s 字符串
+     * @param s string
+     * @param start 开始位置
+     * @param start start position
+     * @param end 结束位置
+     * @param end end position
+     * @return 截取后的字符串
+     * @return substring
+     */
     public static String substring(String s, int start, int end) {
-
         if (isEmpty(s)) {
             return "";
         }
@@ -84,6 +147,15 @@ public class MUtils {
 
     }
 
+    /**
+     * 首字母大写
+     * Capitalize first letter
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 首字母大写后的字符串
+     * @return string with first letter capitalized
+     */
     public static String upperCaseFirstOne(String s) {
         if (isEmpty(s)) {
             return s;
@@ -91,6 +163,15 @@ public class MUtils {
         return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
+    /**
+     * 首字母小写
+     * Lowercase first letter
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return 首字母小写后的字符串
+     * @return string with first letter lowercase
+     */
     public static String lowerCaseFirstOne(String s) {
         if (isEmpty(s)) {
             return s;
@@ -98,6 +179,15 @@ public class MUtils {
         return s.substring(0, 1).toLowerCase() + s.substring(1);
     }
 
+    /**
+     * MD5加密
+     * MD5 encryption
+     * 
+     * @param s 字符串
+     * @param s string
+     * @return MD5加密后的字符串
+     * @return MD5 encrypted string
+     */
     public static String md5(String s) {
         if (isEmpty(s)) {
             return s;
@@ -106,18 +196,35 @@ public class MUtils {
 
     }
 
-
+    /**
+     * 文件MD5加密
+     * File MD5 encryption
+     * 
+     * @param file 文件
+     * @param file file
+     * @return MD5加密后的字符串
+     * @return MD5 encrypted string
+     * @throws IOException 异常
+     * @throws IOException exception
+     */
     public static String md5(MultipartFile file) throws IOException {
-
         if (file == null) {
             return null;
         }
 
         return DigestUtils.md5DigestAsHex(file.getBytes());
 
-
     }
 
+    /**
+     * 驼峰命名转换为下划线命名
+     * Convert camel case to underscore case
+     * 
+     * @param s 驼峰命名的字符串
+     * @param s camel case string
+     * @return 下划线命名的字符串
+     * @return underscore case string
+     */
     public static String mappingCamelCaseToUnderscore(String s) {
         if (isEmpty(s)) {
             return s;
@@ -127,12 +234,18 @@ public class MUtils {
 
         return matcher.replaceAll(arg -> "_" + arg.group().toLowerCase());
 
-
     }
 
-
+    /**
+     * 拼接处理器方法的URI
+     * Concatenate handler method URI
+     * 
+     * @param handlerMethod 处理器方法
+     * @param handlerMethod handler method
+     * @return 拼接后的URI
+     * @return concatenated URI
+     */
     public static String concatHandlerMethodUri(HandlerMethod handlerMethod) {
-
         if (handlerMethod == null) {
             return "";
         }
@@ -143,7 +256,6 @@ public class MUtils {
 
         StringBuilder sb = new StringBuilder();
 
-
         Arrays.stream(uris).flatMap(list -> Arrays.stream(list)).forEach(u -> {
             if (!u.startsWith("/")) {
                 sb.append("/");
@@ -153,9 +265,17 @@ public class MUtils {
 
         return sb.toString();
 
-
     }
 
+    /**
+     * 获取处理器方法的HTTP方法
+     * Get HTTP method of handler method
+     * 
+     * @param handlerMethod 处理器方法
+     * @param handlerMethod handler method
+     * @return HTTP方法，如 get、post、put、delete
+     * @return HTTP method, such as get, post, put, delete
+     */
     public static String getHandlerMethodMethod(HandlerMethod handlerMethod) {
         if (handlerMethod == null) {
             return "";
@@ -173,11 +293,8 @@ public class MUtils {
             return "";
         }
 
-
         return name;
 
-
     }
-
 
 }
