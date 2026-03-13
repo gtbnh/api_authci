@@ -1,0 +1,19 @@
+# @ConfigurationProperties 类的全限定名提示（如果知道的话）
+# spring.configuration-processor.classes=com.ci2.api_authci.property.ApiAuthciProperty
+
+
+spring:
+  application:
+    name: api-authci
+
+
+api-authci:
+  enabled: true
+  headers:
+    token: 'token'
+  token-type: uuid
+  expirationStr: '7d'
+  public-resource:
+    - '/login'
+  secret-key:
+  allow-multi-device-login: true

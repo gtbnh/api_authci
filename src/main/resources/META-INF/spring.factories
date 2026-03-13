@@ -1,0 +1,2 @@
+# META-INF/spring.factories
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.ci2.api_authci.config.ApiAuthciBeanConfig
