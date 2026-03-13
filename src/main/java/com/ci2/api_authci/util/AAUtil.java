@@ -18,8 +18,8 @@ import java.util.*;
 
 public class AAUtil {
 
-    private static final String ID_TOKEN_REDIS_KEY = "apitoken::id::";
-    private static final String TOKEN_DATA_REDIS_KEY = "apitoken::token::";
+    private static final String ID_TOKEN_REDIS_KEY = "authci::id::";
+    private static final String TOKEN_DATA_REDIS_KEY = "authci::token::";
     private static final String ID_KEY = "loginId";
     private static final String LOGIN_TYPE_KEY = "loginType";
 
@@ -196,7 +196,7 @@ public class AAUtil {
         return token;
     }
 
-    public void kickout(Object loginId){
+    public static void kickout(Object loginId){
 
         if (redisTemplate==null) {
             throw new IllegalCallerException("use kick out must have the bean of redisTemplate");
@@ -215,18 +215,22 @@ public class AAUtil {
         return TOKEN_DATA_REDIS_KEY + token;
     }
 
-    public void logout(){
+    public static void logout(){
         kickout(getLoginId());
         dataWrapper.setData(null);
     }
 
-    public List<String> getAllApiPerms() {
+    public static List<String> getAllApiPerms() {
 
         List<String> perms = new ArrayList<>();
 
+        if (handlerMapping==null) {
+            return perms;
+        }
+
         handlerMapping.getHandlerMethods()
                 .values().forEach(handler -> {
-                    perms.add(MUtils.getHandlerMethodMethod(handler)
+                    perms.add(MUtils.getHandlerMethodMethod(handler)+":"
                             +MUtils.concatHandlerMethodUri(handler));
                 });
 

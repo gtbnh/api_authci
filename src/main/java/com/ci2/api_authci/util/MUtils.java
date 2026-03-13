@@ -160,22 +160,21 @@ public class MUtils {
         if (handlerMethod == null) {
             return "";
         }
-        RequestMapping rm = handlerMethod.getMethodAnnotation(RequestMapping.class);
-        if (rm == null) {
+        String name = "";
+        if (handlerMethod.getMethodAnnotation(GetMapping.class) != null) {
+            name = "get";
+        } else if (handlerMethod.getMethodAnnotation(PostMapping.class) != null) {
+            name = "post";
+        } else if (handlerMethod.getMethodAnnotation(PutMapping.class) != null) {
+            name = "put";
+        } else if (handlerMethod.getMethodAnnotation(DeleteMapping.class) != null) {
+            name = "delete";
+        } else {
             return "";
         }
-        Class<? extends RequestMapping> rmClass = rm.getClass();
-        if (rmClass.equals(GetMapping.class)){
-            return "get";
-        }else if (rmClass.equals(PostMapping.class)){
-            return "post";
-        }else if (rmClass.equals(PutMapping.class)){
-            return "put";
-        }else if (rmClass.equals(DeleteMapping.class)){
-            return "delete";
-        }
 
-        return "";
+
+        return name;
 
 
     }

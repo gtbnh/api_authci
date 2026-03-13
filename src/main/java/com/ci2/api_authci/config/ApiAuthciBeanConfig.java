@@ -34,6 +34,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     private ApiAuthciInterceptor apiAuthciInterceptor;
 
     @Autowired
+    @Lazy
     private RequestMappingHandlerMapping handlerMapping;
 
 
