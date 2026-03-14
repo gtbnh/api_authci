@@ -3,7 +3,7 @@ package com.ci2.api_authci.interceptor;
 import com.ci2.api_authci.exception.PermDeniedException;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
 import com.ci2.api_authci.property.ApiAuthciProperty;
-import com.ci2.api_authci.util.AAUtil;
+import com.ci2.api_authci.util.AaUtil;
 import com.ci2.api_authci.util.MUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -95,8 +95,8 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
 
         // 获取用户权限列表
         // Get user permission list
-        List<String> perms = apiAuthciIntf.getPermissions(AAUtil.tryGetLoginId(),
-                AAUtil.tryGetLoginType());
+        List<String> perms = apiAuthciIntf.getPermissions(AaUtil.tryGetLoginId(),
+                AaUtil.tryGetLoginType());
         
         // 判断是否有权限
         // Judge whether has permission

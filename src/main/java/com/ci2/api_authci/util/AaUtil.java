@@ -1,13 +1,17 @@
 package com.ci2.api_authci.util;
 
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.jwt.JWT;
 import cn.hutool.jwt.JWTValidator;
+import com.alibaba.fastjson2.JSON;
 import com.ci2.api_authci.exception.NotLoginException;
 import com.ci2.api_authci.exception.PermDeniedException;
 import com.ci2.api_authci.property.ApiAuthciProperty;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
+import lombok.experimental.Accessors;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -23,7 +27,7 @@ import java.util.*;
  * 该类提供了API鉴权相关的工具方法，包括token生成、用户信息获取等
  * This class provides utility methods for API authentication, including token generation, user information retrieval, etc.
  */
-public class AAUtil {
+public class AaUtil {
 
     // Redis键前缀：用户ID对应的token
     // Redis key prefix: token corresponding to user ID
@@ -48,6 +52,8 @@ public class AAUtil {
     // Redis模板
     // Redis template
     private static RedisTemplate redisTemplate;
+
+    private static RedissonClient redissonClient;
     
     // 请求映射处理器
     // Request mapping handler
@@ -55,7 +61,7 @@ public class AAUtil {
 
     // 数据包装器
     // Data wrapper
-    private static DataWrapper dataWrapper;
+    private static DataWrapper<TokenData> dataWrapper;
 
     /**
      * 设置配置属性
@@ -65,10 +71,10 @@ public class AAUtil {
      * @param apiAuthciProperty configuration properties
      */
     public static void setApiAuthciProperty(ApiAuthciProperty apiAuthciProperty) {
-        if (AAUtil.apiAuthciProperty != null) {
+        if (AaUtil.apiAuthciProperty != null) {
             throw new IllegalCallerException();
         }
-        AAUtil.apiAuthciProperty = apiAuthciProperty;
+        AaUtil.apiAuthciProperty = apiAuthciProperty;
     }
 
     /**
@@ -79,10 +85,10 @@ public class AAUtil {
      * @param redisTemplate Redis template
      */
     public static void setRedisTemplate(RedisTemplate redisTemplate) {
-        if (AAUtil.redisTemplate != null) {
+        if (AaUtil.redisTemplate != null) {
             throw new IllegalCallerException();
         }
-        AAUtil.redisTemplate = redisTemplate;
+        AaUtil.redisTemplate = redisTemplate;
     }
 
     /**
@@ -92,11 +98,19 @@ public class AAUtil {
      * @param dataWrapper 数据包装器
      * @param dataWrapper data wrapper
      */
-    public static void setDataWrapper(DataWrapper dataWrapper) {
-        if (AAUtil.dataWrapper != null) {
+    public static void setDataWrapper(DataWrapper<TokenData> dataWrapper) {
+        if (AaUtil.dataWrapper != null) {
             throw new IllegalCallerException();
         }
-        AAUtil.dataWrapper = dataWrapper;
+
+        AaUtil.dataWrapper = dataWrapper;
+    }
+
+    public static void setRedissonClient(RedissonClient redissonClient) {
+        if (AaUtil.dataWrapper != null) {
+            throw new IllegalCallerException();
+        }
+        AaUtil.redissonClient = redissonClient;
     }
 
     /**
@@ -107,7 +121,7 @@ public class AAUtil {
      * @param handlerMapping request mapping handler
      */
     public static void setHandlerMapping(RequestMappingHandlerMapping handlerMapping) {
-        AAUtil.handlerMapping = handlerMapping;
+        AaUtil.handlerMapping = handlerMapping;
     }
 
     /**
@@ -134,9 +148,11 @@ public class AAUtil {
 
         // 构建payload
         // Build payload
-        HashMap<String, Object> map = new HashMap<>();
-        map.put(ID_KEY, loginId);
-        map.put(LOGIN_TYPE_KEY, loginType);
+        TokenData data = new TokenData();
+        data.setLoginId(loginId).setLoginType(loginType);
+
+        Map<String, Object> map=JSON.parseObject(JSON.toJSONString(data));
+
 
         // 生成token
         // Generate token
@@ -222,7 +238,7 @@ public class AAUtil {
      * @return login ID
      */
     public static Object getLoginId(){
-        return getTokenData().get(ID_KEY);
+        return getTokenData().getLoginId();
     }
     
     /**
@@ -255,7 +271,7 @@ public class AAUtil {
      * @return login type
      */
     public static String getLoginType(){
-        return getTokenData().get(LOGIN_TYPE_KEY).toString();
+        return getTokenData().getLoginType();
     }
 
     /**
@@ -267,7 +283,7 @@ public class AAUtil {
      */
     public static Object tryGetLoginId(){
         try {
-            return getTokenData().get(ID_KEY);
+            return getTokenData().getLoginId();
         } catch (Exception e) {
             return null;
         }
@@ -282,7 +298,7 @@ public class AAUtil {
      */
     public static String tryGetLoginType(){
         try {
-            return getTokenData().get(LOGIN_TYPE_KEY).toString();
+            return getTokenData().getLoginType().toString();
         } catch (Exception e) {
             return "default";
         }
@@ -295,7 +311,7 @@ public class AAUtil {
      * @return token数据
      * @return token data
      */
-    private static Map<String, Object> getTokenData(){
+    private static TokenData getTokenData(){
         // 先从数据包装器中获取
         // First get from data wrapper
         if (dataWrapper.getData() != null){
@@ -311,7 +327,8 @@ public class AAUtil {
         
         // 构建token数据
         // Build token data
-        Map<String, Object> data = new HashMap<>();
+        TokenData data=null;
+//        Map<String, Object> data = new HashMap<>();
         if (redisTemplate != null){
             // 从Redis中获取
             // Get from Redis
@@ -319,14 +336,8 @@ public class AAUtil {
             if (result == null){
                 throw new NotLoginException();
             }
-            Map<String, Object> map = (Map) result;
 
-            if (map.containsKey(ID_KEY)){
-                data.put(ID_KEY, map.get(ID_KEY));
-            }
-            if (map.containsKey(LOGIN_TYPE_KEY)){
-                data.put(LOGIN_TYPE_KEY, map.get(LOGIN_TYPE_KEY));
-            }
+            data=JSON.parseObject(JSON.toJSONString(result), TokenData.class);
 
         } else if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 从JWT中获取
@@ -336,16 +347,12 @@ public class AAUtil {
             JWTValidator.of(jwt).validateDate();
             JSONObject payloads = jwt.getPayloads();
 
-            if (payloads.containsKey(ID_KEY)){
-                data.put(ID_KEY, payloads.get(ID_KEY));
-            } else if (payloads.containsKey(LOGIN_TYPE_KEY)){
-                data.put(LOGIN_TYPE_KEY, payloads.get(LOGIN_TYPE_KEY));
-            }
+            data=JSON.parseObject(JSON.toJSONString(payloads), TokenData.class);
         }
         
         // 检查数据是否为空
         // Check if data is empty
-        if (data.isEmpty()){
+        if (data==null){
             throw new NotLoginException();
         }
         
@@ -444,11 +451,23 @@ public class AAUtil {
      * Data wrapper class
      */
     @Data
-    public static class DataWrapper {
+    public static class DataWrapper<T> {
         // 存储的数据
         // Stored data
-        Map data;
+        T data;
+    }
+
+    @Data
+    @Accessors(chain = true)
+    public static class TokenData{
+
+        Object loginId;
+        String loginType;
+        long no= IdUtil.getSnowflakeNextId();
+        Map<String, Object> payload;
 
     }
+
+
 
 }

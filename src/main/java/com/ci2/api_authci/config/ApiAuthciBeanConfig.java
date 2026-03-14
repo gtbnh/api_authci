@@ -3,8 +3,10 @@ package com.ci2.api_authci.config;
 import com.ci2.api_authci.interceptor.ApiAuthciInterceptor;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
 import com.ci2.api_authci.property.ApiAuthciProperty;
-import com.ci2.api_authci.util.AAUtil;
+import com.ci2.api_authci.util.AaUtil;
 import com.ci2.api_authci.util.MUtils;
+import com.ci2.api_authci.util.RdUtil;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -42,13 +44,16 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     // Data wrapper, used to store request-level data
     @Autowired
     @Lazy
-    private AAUtil.DataWrapper dataWrapper;
+    private AaUtil.DataWrapper dataWrapper;
 
     // 鉴权拦截器
     // Authentication interceptor
     @Autowired
     @Lazy
     private ApiAuthciInterceptor apiAuthciInterceptor;
+
+    @Autowired(required = false)
+    private RedissonClient redissonClient;
 
     // 请求映射处理器
     // Request mapping handler
@@ -65,8 +70,8 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      */
     @Bean
     @Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
-    public AAUtil.DataWrapper dataWrapper() {
-        return new AAUtil.DataWrapper();
+    public AaUtil.DataWrapper<AaUtil.TokenData> dataWrapper() {
+        return new AaUtil.DataWrapper<>();
     }
 
     /**
@@ -123,10 +128,11 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
 
         // 设置工具类的静态属性
         // Set static properties of utility class
-        AAUtil.setRedisTemplate(redisTemplate);
-        AAUtil.setApiAuthciProperty(apiAuthciProperty);
-        AAUtil.setDataWrapper(dataWrapper);
-        AAUtil.setHandlerMapping(handlerMapping);
+        AaUtil.setRedisTemplate(redisTemplate);
+        AaUtil.setRedissonClient(redissonClient);
+        AaUtil.setApiAuthciProperty(apiAuthciProperty);
+        AaUtil.setDataWrapper(dataWrapper);
+        AaUtil.setHandlerMapping(handlerMapping);
     }
 
     /**
@@ -141,6 +147,12 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     public ApiAuthciIntf apiTokenAuthIntf() {
         throw new RuntimeException(ApiAuthciIntf.class.getSimpleName() +
                 " not implemented");
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RdUtil rdUtil() {
+        return new RdUtil(redissonClient);
     }
 
 }
