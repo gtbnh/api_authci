@@ -16,4 +16,4 @@ api-authci:
   public-resource:
     - '/login'
   secret-key:
-  allow-multi-device-login: true
+

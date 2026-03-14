@@ -66,8 +66,11 @@ public class ApiAuthciProperty {
      * 是否允许多设备登录
      * Whether to allow multi-device login
      */
-    private boolean allowMultiDeviceLogin = false;
+//    private boolean allowMultiDeviceLogin = false;
 
+    private int maxAllowLoginDevices = 1;
+
+    private int perDeviceTypeAllowLoginCount = 99;
     /**
      * 获取token过期时间
      * Get token expiration time

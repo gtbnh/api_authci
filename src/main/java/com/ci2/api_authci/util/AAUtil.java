@@ -5,14 +5,19 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.jwt.JWT;
 import cn.hutool.jwt.JWTValidator;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.TypeReference;
 import com.ci2.api_authci.exception.NotLoginException;
 import com.ci2.api_authci.exception.PermDeniedException;
 import com.ci2.api_authci.property.ApiAuthciProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import eu.bitwalker.useragentutils.UserAgent;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.experimental.Accessors;
-import org.redisson.api.RedissonClient;
+import org.redisson.api.RLock;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -27,7 +32,7 @@ import java.util.*;
  * 该类提供了API鉴权相关的工具方法，包括token生成、用户信息获取等
  * This class provides utility methods for API authentication, including token generation, user information retrieval, etc.
  */
-public class AaUtil {
+public class AAUtil {
 
     // Redis键前缀：用户ID对应的token
     // Redis key prefix: token corresponding to user ID
@@ -36,7 +41,8 @@ public class AaUtil {
     // Redis键前缀：token对应的用户数据
     // Redis key prefix: user data corresponding to token
     private static final String TOKEN_DATA_REDIS_KEY = "authci::token::";
-    
+    private static final String LOGIN_TYPE_DEFAULT = "default";
+
     // 登录ID键名
     // Login ID key name
     private static final String ID_KEY = "loginId";
@@ -51,9 +57,9 @@ public class AaUtil {
     
     // Redis模板
     // Redis template
-    private static RedisTemplate redisTemplate;
+    private static RedisTemplate<String,Object> redisTemplate;
 
-    private static RedissonClient redissonClient;
+    private static RdUtil rdUtil;
     
     // 请求映射处理器
     // Request mapping handler
@@ -71,10 +77,10 @@ public class AaUtil {
      * @param apiAuthciProperty configuration properties
      */
     public static void setApiAuthciProperty(ApiAuthciProperty apiAuthciProperty) {
-        if (AaUtil.apiAuthciProperty != null) {
+        if (AAUtil.apiAuthciProperty != null) {
             throw new IllegalCallerException();
         }
-        AaUtil.apiAuthciProperty = apiAuthciProperty;
+        AAUtil.apiAuthciProperty = apiAuthciProperty;
     }
 
     /**
@@ -85,10 +91,10 @@ public class AaUtil {
      * @param redisTemplate Redis template
      */
     public static void setRedisTemplate(RedisTemplate redisTemplate) {
-        if (AaUtil.redisTemplate != null) {
+        if (AAUtil.redisTemplate != null) {
             throw new IllegalCallerException();
         }
-        AaUtil.redisTemplate = redisTemplate;
+        AAUtil.redisTemplate = redisTemplate;
     }
 
     /**
@@ -99,18 +105,18 @@ public class AaUtil {
      * @param dataWrapper data wrapper
      */
     public static void setDataWrapper(DataWrapper<TokenData> dataWrapper) {
-        if (AaUtil.dataWrapper != null) {
+        if (AAUtil.dataWrapper != null) {
             throw new IllegalCallerException();
         }
 
-        AaUtil.dataWrapper = dataWrapper;
+        AAUtil.dataWrapper = dataWrapper;
     }
 
-    public static void setRedissonClient(RedissonClient redissonClient) {
-        if (AaUtil.dataWrapper != null) {
+    public static void setRdUtil(RdUtil rdUtil) {
+        if (AAUtil.dataWrapper != null) {
             throw new IllegalCallerException();
         }
-        AaUtil.redissonClient = redissonClient;
+        AAUtil.rdUtil = rdUtil;
     }
 
     /**
@@ -121,7 +127,7 @@ public class AaUtil {
      * @param handlerMapping request mapping handler
      */
     public static void setHandlerMapping(RequestMappingHandlerMapping handlerMapping) {
-        AaUtil.handlerMapping = handlerMapping;
+        AAUtil.handlerMapping = handlerMapping;
     }
 
     /**
@@ -135,45 +141,109 @@ public class AaUtil {
      * @return token字符串
      * @return token string
      */
-    public static String getToken(Object loginId, String loginType){
-        Object oldToken;
-        if (apiAuthciProperty.isAllowMultiDeviceLogin() && redisTemplate != null){
-            // 允许多设备登录且Redis存在时，尝试获取旧token
-            // When multi-device login is allowed and Redis exists, try to get old token
-            oldToken = redisTemplate.opsForValue().get(getIdKey(loginId));
-            if (oldToken != null){
-                return oldToken.toString();
-            }
-        }
+    public static String getToken(Object loginId, String loginType,Map<String,Object> payload){
 
         // 构建payload
         // Build payload
         TokenData data = new TokenData();
-        data.setLoginId(loginId).setLoginType(loginType);
+        data.setLoginId(loginId).setLoginType(loginType)
+                .setPayloadStr(JSON.toJSONString(payload));
 
-        Map<String, Object> map=JSON.parseObject(JSON.toJSONString(data));
+        String dataJson = JSON.toJSONString(data);
 
 
         // 生成token
         // Generate token
-        String token = generaToken(map);
+        String token = generaToken(dataJson);
 
         // 存储token到Redis
         // Store token to Redis
         if (redisTemplate != null){
-            oldToken = redisTemplate.opsForValue().get(getIdKey(loginId));
-            if (oldToken != null){
-                // 删除旧token
-                // Delete old token
-                redisTemplate.delete(getTokenKey(oldToken));
+
+            RLock lock=null;
+            try {
+                lock = rdUtil.lock(loginId.toString());
+                List<String> delKeys=new ArrayList<>();
+                List<String> idKeys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
+                idKeys.sort(Comparator.comparing(s -> s.substring(s.lastIndexOf(":") + 1)));
+
+                if (idKeys.size() > apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
+
+                    int count=0;
+                    String loginIdKey = getLoginIdKey(loginId);
+                    for (int n = idKeys.size() - 1; n >= 0 ; n--) {
+                        String idKey = idKeys.get(n);
+                        if (idKey.startsWith(loginIdKey)) {
+                            count++;
+
+                            if (count>=apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
+                                idKeys.remove(n);
+                                delKeys.add(idKey);
+
+                            }
+                        }
+
+
+                    }
+                }
+
+                for (int i = idKeys.size()-apiAuthciProperty.getMaxAllowLoginDevices(); i >= 0; i--) {
+                    delKeys.add(idKeys.get(i));
+                }
+
+                List<Object> delTokens = redisTemplate.opsForValue().multiGet(delKeys);
+                if (delTokens != null && delTokens.size() > 0) {
+                    delTokens.forEach(o ->
+                            delKeys.add(getTokenKey(o)));
+                }
+                if (!delKeys.isEmpty()) {
+                    redisTemplate.delete(delKeys);
+                }
+
+
+                Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
+                redisTemplate.opsForValue().set(getTokenKey(token), data, expiration);
+                redisTemplate.opsForValue().set(getLoginIdKeyWithSn(loginId,data), token, expiration);
+
+            } finally {
+                if (lock!=null && lock.isLocked()) {
+                    lock.unlock();
+                }
             }
-            // 设置过期时间
-            // Set expiration time
-            Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
-            redisTemplate.opsForValue().set(getIdKey(loginId), token, expiration);
-            redisTemplate.opsForValue().set(getTokenKey(token), map, expiration);
+
+
+
         }
+
         return token;
+
+
+
+    }
+
+    private static String getLoginIdKeyPattern(Object loginId) {
+        return getLoginIdKey(loginId) + "::*";
+    }
+
+    public static List<String> getAllMatchKeyList(String pattern) {
+        redisCheck();
+        List<String> idKeys=new ArrayList<>();
+
+        Cursor<String> cursor = redisTemplate.scan(
+                ScanOptions.scanOptions()
+                        .match(pattern)
+                        .count(100)
+                        .build()
+        );
+
+        while (cursor.hasNext()) {
+           String key = cursor.next();
+            if (key != null) {
+                idKeys.add(key);
+            }
+        }
+
+        return idKeys;
     }
 
     /**
@@ -185,9 +255,14 @@ public class AaUtil {
      * @return Redis键
      * @return Redis key
      */
-    private static String getIdKey(Object loginId) {
-        return ID_TOKEN_REDIS_KEY + loginId;
+    private static String getLoginIdKey(Object loginId) {
+        return ID_TOKEN_REDIS_KEY + loginId+"::"+dataWrapper.getDeviceType();
     }
+
+    private static String getLoginIdKeyWithSn(Object loginId, TokenData tokenData) {
+        return getLoginIdKey(loginId)+"::"+tokenData.getSn();
+    }
+
 
     /**
      * 生成token
@@ -198,14 +273,14 @@ public class AaUtil {
      * @return token字符串
      * @return token string
      */
-    private static String generaToken(Map<String, Object> payload) {
+    private static String generaToken(String payload) {
         if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 生成JWT token
             // Generate JWT token
             String token = JWT.create()
                     .setKey(apiAuthciProperty.getSecretKey().getBytes())
                     .setExpiresAt(new Date(System.currentTimeMillis() + apiAuthciProperty.getExpiration()))
-                    .addPayloads(payload)
+                    .addPayloads(JSON.parseObject(payload,new TypeReference<Map<String, Object>>() {}))
                     .sign();
             return token;
         } else if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())) {
@@ -227,7 +302,14 @@ public class AaUtil {
      * @return token string
      */
     public static String getToken(Object loginId) {
-        return getToken(loginId, "default");
+        return getToken(loginId, LOGIN_TYPE_DEFAULT,null);
+    }
+    public static String getToken(Object loginId,Map<String,Object> payload) {
+        return getToken(loginId, LOGIN_TYPE_DEFAULT,payload);
+    }
+
+    public static Map<String, Object> getPayload() {
+        return getTokenData().getPayload();
     }
 
     /**
@@ -300,7 +382,7 @@ public class AaUtil {
         try {
             return getTokenData().getLoginType().toString();
         } catch (Exception e) {
-            return "default";
+            return LOGIN_TYPE_DEFAULT;
         }
     }
 
@@ -311,7 +393,7 @@ public class AaUtil {
      * @return token数据
      * @return token data
      */
-    private static TokenData getTokenData(){
+    public static TokenData getTokenData(){
         // 先从数据包装器中获取
         // First get from data wrapper
         if (dataWrapper.getData() != null){
@@ -332,12 +414,10 @@ public class AaUtil {
         if (redisTemplate != null){
             // 从Redis中获取
             // Get from Redis
-            Object result = redisTemplate.opsForValue().get(getTokenKey(token));
-            if (result == null){
-                throw new NotLoginException();
-            }
+            data = (TokenData) redisTemplate.opsForValue().get(getTokenKey(token));
 
-            data=JSON.parseObject(JSON.toJSONString(result), TokenData.class);
+
+//            data=JSON.parseObject(JSON.toJSONString(result), TokenData.class);
 
         } else if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 从JWT中获取
@@ -369,11 +449,27 @@ public class AaUtil {
      * @return token字符串
      * @return token string
      */
-    private static String getRequestToken() {
+    public static String getRequestToken() {
+
+        String token = getRequest().getHeader(apiAuthciProperty.getHeaders().getToken());
+        return token;
+    }
+    public static String getRequestDeviceType(){
+
+        UserAgent userAgent = UserAgent.parseUserAgentString(getRequest().getHeader("User-Agent"));
+        return userAgent.getOperatingSystem().getDeviceType().getName();
+    }
+
+    public static HttpServletRequest getRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
-        String token = request.getHeader(apiAuthciProperty.getHeaders().getToken());
-        return token;
+        return request;
+    }
+
+    private static void redisCheck(){
+        if (redisTemplate == null) {
+            throw new IllegalCallerException("call this method must have a redis");
+        }
     }
 
     /**
@@ -384,18 +480,31 @@ public class AaUtil {
      * @param loginId login ID
      */
     public static void kickout(Object loginId){
-        if (redisTemplate == null) {
-            throw new IllegalCallerException("use kick out must have the bean of redisTemplate");
-        }
-        Object token = redisTemplate.opsForValue().get(getIdKey(loginId));
-        if (token == null){
-            return;
-        }
+        redisCheck();
 
-        // 删除token相关的Redis键
-        // Delete Redis keys related to token
-        redisTemplate.delete(List.of(getTokenKey(token),
-                getIdKey(loginId)));
+        List<String> keys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
+        List<Object> tokens = redisTemplate.opsForValue().multiGet(keys);
+
+        if (tokens != null && tokens.size() > 0) {
+            tokens.forEach(token -> {keys.add(getTokenKey(token));});
+        }
+        redisTemplate.delete(keys);
+
+    }
+
+    public static void kickout(String token){
+        redisCheck();
+
+        String tokenKey = getTokenKey(token);
+        TokenData data = (TokenData) redisTemplate.opsForValue().get(tokenKey);
+
+//        if (result == null){
+//            return;
+//        }
+//        TokenData data = JSON.parseObject(JSON.toJSONString(result), TokenData.class);
+        List<String> delKeys = List.of(tokenKey, getLoginIdKeyWithSn(data.getLoginId(), data));
+
+        redisTemplate.delete(delKeys);
 
     }
 
@@ -417,9 +526,39 @@ public class AaUtil {
      * Logout
      */
     public static void logout(){
-        kickout(getLoginId());
+        kickout(getRequestToken());
         dataWrapper.setData(null);
     }
+
+    public static List<TokenData> getAllLoginInfo(Object loginId) {
+
+
+        List<String> keys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
+        List<Object> tokens = redisTemplate.opsForValue().multiGet(keys);
+        if (tokens == null || tokens.size() == 0) {
+            return List.of();
+        }
+        List<String> tokenKeys = tokens.stream().map(AAUtil::getTokenKey).toList();
+
+        List results = redisTemplate.opsForValue().multiGet(tokenKeys);
+        if (results == null || results.size() == 0) {
+            return List.of();
+        }
+
+        List<TokenData> dataList = results;
+        for (int i = 0; i < tokenKeys.size(); i++) {
+            TokenData data = dataList.get(i);
+            String token = tokenKeys.get(i);
+            if (data!=null){
+                data.setToken(token);
+            }
+
+        }
+
+        return dataList;
+
+    }
+
 
     /**
      * 获取所有API权限
@@ -455,17 +594,42 @@ public class AaUtil {
         // 存储的数据
         // Stored data
         T data;
+        String token;
+        String deviceType;
+
+        public String getToken() {
+            if (token == null) {
+                return token=getRequestToken();
+            }
+            return token;
+        }
+
+        public String getDeviceType() {
+            if (deviceType == null) {
+                return deviceType=getRequestDeviceType();
+            }
+            return deviceType;
+        }
     }
 
     @Data
     @Accessors(chain = true)
     public static class TokenData{
 
+
+        @JsonIgnore(value = true)
+        String token;
+
         Object loginId;
         String loginType;
-        long no= IdUtil.getSnowflakeNextId();
+        String sn = IdUtil.getSnowflakeNextId()+"";
         Map<String, Object> payload;
+        String payloadStr;
 
+        public void setPayloadStr(String payloadStr) {
+            this.payloadStr = payloadStr;
+            payload= JSON.parseObject(payloadStr, new TypeReference<Map<String, Object>>() {});
+        }
     }
 
 

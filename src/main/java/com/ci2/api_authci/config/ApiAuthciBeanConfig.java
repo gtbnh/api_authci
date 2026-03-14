@@ -3,17 +3,25 @@ package com.ci2.api_authci.config;
 import com.ci2.api_authci.interceptor.ApiAuthciInterceptor;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
 import com.ci2.api_authci.property.ApiAuthciProperty;
-import com.ci2.api_authci.util.AaUtil;
+import com.ci2.api_authci.util.AAUtil;
 import com.ci2.api_authci.util.MUtils;
 import com.ci2.api_authci.util.RdUtil;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -32,8 +40,11 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
 
     // Redis模板，用于存储token
     // Redis template, used to store tokens
+//    @Autowired(required = false)
+//    private RedisTemplate redisTemplate;
+
     @Autowired(required = false)
-    private RedisTemplate redisTemplate;
+    private RedisConnectionFactory redisConnectionFactory;
     
     // 配置属性
     // Configuration properties
@@ -44,7 +55,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     // Data wrapper, used to store request-level data
     @Autowired
     @Lazy
-    private AaUtil.DataWrapper dataWrapper;
+    private AAUtil.DataWrapper dataWrapper;
 
     // 鉴权拦截器
     // Authentication interceptor
@@ -55,9 +66,14 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     @Autowired(required = false)
     private RedissonClient redissonClient;
 
+    @Autowired
+    @Lazy
+    private RdUtil rdUtil;
+
     // 请求映射处理器
     // Request mapping handler
     @Autowired
+    @Qualifier("requestMappingHandlerMapping")
     @Lazy
     private RequestMappingHandlerMapping handlerMapping;
 
@@ -69,9 +85,10 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * @return data wrapper instance
      */
     @Bean
+    @ConditionalOnMissingBean
     @Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
-    public AaUtil.DataWrapper<AaUtil.TokenData> dataWrapper() {
-        return new AaUtil.DataWrapper<>();
+    public AAUtil.DataWrapper<AAUtil.TokenData> dataWrapper() {
+        return new AAUtil.DataWrapper<>();
     }
 
     /**
@@ -115,24 +132,42 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      */
     @Override
     public void afterPropertiesSet() {
+
         // 检查配置的有效性
         // Check configuration validity
         if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())
-                && redisTemplate == null) {
-            throw new IllegalArgumentException("use the token type of uuid must have the bean of redisTemplate");
+                && redisConnectionFactory == null) {
+            throw new IllegalArgumentException("use the token type of uuid must have a redis");
         }
         if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())
                 && MUtils.isBlank(apiAuthciProperty.getSecretKey())) {
             throw new IllegalArgumentException("use the token type of jwt must have a secret key");
         }
+        RedisTemplate<String,Object> redisTemplate=null;
+        if (redisConnectionFactory!=null) {
+            redisTemplate=new RedisTemplate<>();
+            redisTemplate.setConnectionFactory(redisConnectionFactory);
+            redisTemplate.setKeySerializer(new StringRedisSerializer());
 
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.activateDefaultTyping(
+                    mapper.getPolymorphicTypeValidator(),
+                    ObjectMapper.DefaultTyping.NON_FINAL,
+                    JsonTypeInfo.As.PROPERTY
+            );
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,false);
+
+
+            redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer(mapper));
+            redisTemplate.afterPropertiesSet();
+        }
         // 设置工具类的静态属性
         // Set static properties of utility class
-        AaUtil.setRedisTemplate(redisTemplate);
-        AaUtil.setRedissonClient(redissonClient);
-        AaUtil.setApiAuthciProperty(apiAuthciProperty);
-        AaUtil.setDataWrapper(dataWrapper);
-        AaUtil.setHandlerMapping(handlerMapping);
+        AAUtil.setRedisTemplate(redisTemplate);
+        AAUtil.setRdUtil(rdUtil);
+        AAUtil.setApiAuthciProperty(apiAuthciProperty);
+        AAUtil.setDataWrapper(dataWrapper);
+        AAUtil.setHandlerMapping(handlerMapping);
     }
 
     /**
@@ -151,7 +186,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
 
     @Bean
     @ConditionalOnMissingBean
-    public RdUtil rdUtil() {
+    public RdUtil rdUtil(RedissonClient redissonClient) {
         return new RdUtil(redissonClient);
     }
 
