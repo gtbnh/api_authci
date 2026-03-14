@@ -8,6 +8,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.ci2.api_authci.exception.NotLoginException;
 import com.ci2.api_authci.exception.PermDeniedException;
+import com.ci2.api_authci.intf.PermValidator;
 import com.ci2.api_authci.property.ApiAuthciProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import eu.bitwalker.useragentutils.UserAgent;
@@ -15,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.experimental.Accessors;
 import org.redisson.api.RLock;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -29,8 +31,8 @@ import java.util.*;
  * API 鉴权工具类
  * API Authentication Utility Class
  * 
- * 该类提供了API鉴权相关的工具方法，包括token生成、用户信息获取等
- * This class provides utility methods for API authentication, including token generation, user information retrieval, etc.
+ * 该类提供了API鉴权相关的工具方法，包括token生成、用户信息获取、权限验证等
+ * This class provides utility methods for API authentication, including token generation, user information retrieval, permission verification, etc.
  */
 public class AAUtil {
 
@@ -41,7 +43,14 @@ public class AAUtil {
     // Redis键前缀：token对应的用户数据
     // Redis key prefix: user data corresponding to token
     private static final String TOKEN_DATA_REDIS_KEY = "authci::token::";
+    
+    // 默认登录类型
+    // Default login type
     private static final String LOGIN_TYPE_DEFAULT = "default";
+
+    // Redis锁键前缀
+    // Redis lock key prefix
+    private static final String LOCK_REDIS_KEY = "authci::lock::";
 
     // 登录ID键名
     // Login ID key name
@@ -57,8 +66,10 @@ public class AAUtil {
     
     // Redis模板
     // Redis template
-    private static RedisTemplate<String,Object> redisTemplate;
+    private static RedisTemplate<String, Object> redisTemplate;
 
+    // Redis分布式锁工具
+    // Redis distributed lock utility
     private static RdUtil rdUtil;
     
     // 请求映射处理器
@@ -69,6 +80,15 @@ public class AAUtil {
     // Data wrapper
     private static DataWrapper<TokenData> dataWrapper;
 
+    private static PermValidator permValidator;
+
+    private static volatile boolean isInit = false;
+
+    public static void setPermValidator(PermValidator permValidator) {
+        checkInit();
+        AAUtil.permValidator = permValidator;
+    }
+
     /**
      * 设置配置属性
      * Set configuration properties
@@ -77,9 +97,7 @@ public class AAUtil {
      * @param apiAuthciProperty configuration properties
      */
     public static void setApiAuthciProperty(ApiAuthciProperty apiAuthciProperty) {
-        if (AAUtil.apiAuthciProperty != null) {
-            throw new IllegalCallerException();
-        }
+        checkInit();
         AAUtil.apiAuthciProperty = apiAuthciProperty;
     }
 
@@ -91,9 +109,7 @@ public class AAUtil {
      * @param redisTemplate Redis template
      */
     public static void setRedisTemplate(RedisTemplate redisTemplate) {
-        if (AAUtil.redisTemplate != null) {
-            throw new IllegalCallerException();
-        }
+        checkInit();
         AAUtil.redisTemplate = redisTemplate;
     }
 
@@ -105,17 +121,19 @@ public class AAUtil {
      * @param dataWrapper data wrapper
      */
     public static void setDataWrapper(DataWrapper<TokenData> dataWrapper) {
-        if (AAUtil.dataWrapper != null) {
-            throw new IllegalCallerException();
-        }
-
+        checkInit();
         AAUtil.dataWrapper = dataWrapper;
     }
 
+    /**
+     * 设置Redis分布式锁工具
+     * Set Redis distributed lock utility
+     * 
+     * @param rdUtil Redis分布式锁工具
+     * @param rdUtil Redis distributed lock utility
+     */
     public static void setRdUtil(RdUtil rdUtil) {
-        if (AAUtil.dataWrapper != null) {
-            throw new IllegalCallerException();
-        }
+        checkInit();
         AAUtil.rdUtil = rdUtil;
     }
 
@@ -130,6 +148,16 @@ public class AAUtil {
         AAUtil.handlerMapping = handlerMapping;
     }
 
+    public static void postConstr() {
+        isInit = true;
+    }
+
+    public static void checkInit() {
+        if (isInit) {
+            throw new IllegalCallerException();
+        }
+    }
+
     /**
      * 生成token
      * Generate token
@@ -138,19 +166,19 @@ public class AAUtil {
      * @param loginId login ID
      * @param loginType 登录类型
      * @param loginType login type
+     * @param payload 额外载荷数据
+     * @param payload additional payload data
      * @return token字符串
      * @return token string
      */
-    public static String getToken(Object loginId, String loginType,Map<String,Object> payload){
-
+    public static String getToken(Object loginId, String loginType, Map<String, Object> payload) {
         // 构建payload
         // Build payload
         TokenData data = new TokenData();
         data.setLoginId(loginId).setLoginType(loginType)
-                .setPayloadStr(JSON.toJSONString(payload));
+                .setPayload(payload);
 
         String dataJson = JSON.toJSONString(data);
-
 
         // 生成token
         // Generate token
@@ -158,86 +186,127 @@ public class AAUtil {
 
         // 存储token到Redis
         // Store token to Redis
-        if (redisTemplate != null){
-
-            RLock lock=null;
+        if (redisTemplate != null) {
+            RLock lock = null;
             try {
-                lock = rdUtil.lock(loginId.toString());
-                List<String> delKeys=new ArrayList<>();
+                // 获取分布式锁
+                // Get distributed lock
+                lock = rdUtil.lock(getLockKey(loginId));
+                List<String> delKeys = new ArrayList<>();
                 List<String> idKeys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
+                // 按顺序排序键
+                // Sort keys in order
                 idKeys.sort(Comparator.comparing(s -> s.substring(s.lastIndexOf(":") + 1)));
 
+                // 处理每设备类型登录数量限制
+                // Handle per device type login count limit
                 if (idKeys.size() > apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
-
-                    int count=0;
+                    int count = 0;
                     String loginIdKey = getLoginIdKey(loginId);
-                    for (int n = idKeys.size() - 1; n >= 0 ; n--) {
+                    for (int n = idKeys.size() - 1; n >= 0; n--) {
                         String idKey = idKeys.get(n);
                         if (idKey.startsWith(loginIdKey)) {
                             count++;
-
-                            if (count>=apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
+                            if (count >= apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
                                 idKeys.remove(n);
                                 delKeys.add(idKey);
-
                             }
                         }
-
-
                     }
                 }
 
-                for (int i = idKeys.size()-apiAuthciProperty.getMaxAllowLoginDevices(); i >= 0; i--) {
+                // 处理最大登录设备数限制
+                // Handle maximum login devices limit
+                for (int i = idKeys.size() - apiAuthciProperty.getMaxAllowLoginDevices(); i >= 0; i--) {
                     delKeys.add(idKeys.get(i));
                 }
 
+                // 获取要删除的token
+                // Get tokens to delete
                 List<Object> delTokens = redisTemplate.opsForValue().multiGet(delKeys);
                 if (delTokens != null && delTokens.size() > 0) {
                     delTokens.forEach(o ->
                             delKeys.add(getTokenKey(o)));
                 }
+                // 删除过期的键
+                // Delete expired keys
                 if (!delKeys.isEmpty()) {
                     redisTemplate.delete(delKeys);
                 }
 
-
-                Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
-                redisTemplate.opsForValue().set(getTokenKey(token), data, expiration);
-                redisTemplate.opsForValue().set(getLoginIdKeyWithSn(loginId,data), token, expiration);
+                // 存储新token
+                // Store new token
+                if (apiAuthciProperty.getExpiration() != -1) {
+                    Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
+                    redisTemplate.opsForValue().set(getTokenKey(token), data, expiration);
+                    redisTemplate.opsForValue().set(getLoginIdKeyWithSn( data), token, expiration);
+                } else {
+                    redisTemplate.opsForValue().set(getTokenKey(token), data);
+                    redisTemplate.opsForValue().set(getLoginIdKeyWithSn( data), token);
+                }
 
             } finally {
-                if (lock!=null && lock.isLocked()) {
+                // 释放锁
+                // Release lock
+                if (lock != null && lock.isLocked()) {
                     lock.unlock();
                 }
             }
-
-
-
         }
 
         return token;
-
-
-
     }
 
+    /**
+     * 获取锁的键
+     * Get lock key
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @return 锁的键
+     * @return lock key
+     */
+    private static String getLockKey(Object loginId) {
+        return LOCK_REDIS_KEY + loginId.toString();
+    }
+
+    /**
+     * 获取登录ID键的模式
+     * Get login ID key pattern
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @return 键的模式
+     * @return key pattern
+     */
     private static String getLoginIdKeyPattern(Object loginId) {
-        return getLoginIdKey(loginId) + "::*";
+        return getBasicLoginIdKeySb(loginId).append("::*").toString();
     }
 
+    /**
+     * 获取所有匹配的键列表
+     * Get all matching key list
+     * 
+     * @param pattern 键的模式
+     * @param pattern key pattern
+     * @return 匹配的键列表
+     * @return matching key list
+     */
     public static List<String> getAllMatchKeyList(String pattern) {
         redisCheck();
-        List<String> idKeys=new ArrayList<>();
+        List<String> idKeys = new ArrayList<>();
 
+        // 使用Redis的scan命令获取匹配的键
+        // Use Redis scan command to get matching keys
         Cursor<String> cursor = redisTemplate.scan(
                 ScanOptions.scanOptions()
                         .match(pattern)
-                        .count(100)
+                        .count(apiAuthciProperty.getMaxAllowLoginDevices())
                         .build()
         );
 
         while (cursor.hasNext()) {
-           String key = cursor.next();
+            String key = cursor.next();
             if (key != null) {
                 idKeys.add(key);
             }
@@ -256,13 +325,48 @@ public class AAUtil {
      * @return Redis key
      */
     private static String getLoginIdKey(Object loginId) {
-        return ID_TOKEN_REDIS_KEY + loginId+"::"+dataWrapper.getDeviceType();
+        return getLoginIdKeySb(loginId).toString();
     }
 
-    private static String getLoginIdKeyWithSn(Object loginId, TokenData tokenData) {
-        return getLoginIdKey(loginId)+"::"+tokenData.getSn();
+    /**
+     * 获取基本的登录ID键构建器
+     * Get basic login ID key builder
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @return 键构建器
+     * @return key builder
+     */
+    private static StringBuilder getBasicLoginIdKeySb(Object loginId) {
+        StringBuilder sb = new StringBuilder(ID_TOKEN_REDIS_KEY);
+        return sb.append(loginId);
     }
 
+    /**
+     * 获取登录ID键构建器
+     * Get login ID key builder
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @return 键构建器
+     * @return key builder
+     */
+    private static StringBuilder getLoginIdKeySb(Object loginId) {
+        return getBasicLoginIdKeySb(loginId).append("::").append(dataWrapper.getDeviceType());
+    }
+
+    /**
+     * 获取带序列号的登录ID键
+     * Get login ID key with serial number
+     *
+     * @param tokenData token数据
+     * @param tokenData token data
+     * @return 带序列号的登录ID键
+     * @return login ID key with serial number
+     */
+    private static String getLoginIdKeyWithSn( TokenData tokenData) {
+        return getLoginIdKeySb(tokenData.getLoginId()).append("::").append(tokenData.getSn()).toString();
+    }
 
     /**
      * 生成token
@@ -280,7 +384,7 @@ public class AAUtil {
             String token = JWT.create()
                     .setKey(apiAuthciProperty.getSecretKey().getBytes())
                     .setExpiresAt(new Date(System.currentTimeMillis() + apiAuthciProperty.getExpiration()))
-                    .addPayloads(JSON.parseObject(payload,new TypeReference<Map<String, Object>>() {}))
+                    .addPayloads(JSON.parseObject(payload, new TypeReference<Map<String, Object>>() { }))
                     .sign();
             return token;
         } else if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())) {
@@ -302,12 +406,31 @@ public class AAUtil {
      * @return token string
      */
     public static String getToken(Object loginId) {
-        return getToken(loginId, LOGIN_TYPE_DEFAULT,null);
-    }
-    public static String getToken(Object loginId,Map<String,Object> payload) {
-        return getToken(loginId, LOGIN_TYPE_DEFAULT,payload);
+        return getToken(loginId, LOGIN_TYPE_DEFAULT, null);
     }
 
+    /**
+     * 生成token（使用默认登录类型和自定义载荷）
+     * Generate token (using default login type and custom payload)
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @param payload 额外载荷数据
+     * @param payload additional payload data
+     * @return token字符串
+     * @return token string
+     */
+    public static String getToken(Object loginId, Map<String, Object> payload) {
+        return getToken(loginId, LOGIN_TYPE_DEFAULT, payload);
+    }
+
+    /**
+     * 获取token中的载荷数据
+     * Get payload data from token
+     * 
+     * @return 载荷数据
+     * @return payload data
+     */
     public static Map<String, Object> getPayload() {
         return getTokenData().getPayload();
     }
@@ -319,10 +442,10 @@ public class AAUtil {
      * @return 登录ID
      * @return login ID
      */
-    public static Object getLoginId(){
+    public static Object getLoginId() {
         return getTokenData().getLoginId();
     }
-    
+
     /**
      * 获取登录ID（转换为Long）
      * Get login ID (convert to Long)
@@ -330,7 +453,7 @@ public class AAUtil {
      * @return 登录ID
      * @return login ID
      */
-    public static Long getLoginIdAsLong(){
+    public static Long getLoginIdAsLong() {
         return Long.valueOf(getLoginId().toString());
     }
 
@@ -341,7 +464,7 @@ public class AAUtil {
      * @return 登录ID
      * @return login ID
      */
-    public static String getLoginIdAsString(){
+    public static String getLoginIdAsString() {
         return getLoginId().toString();
     }
 
@@ -352,7 +475,7 @@ public class AAUtil {
      * @return 登录类型
      * @return login type
      */
-    public static String getLoginType(){
+    public static String getLoginType() {
         return getTokenData().getLoginType();
     }
 
@@ -363,7 +486,7 @@ public class AAUtil {
      * @return 登录ID，可能为null
      * @return login ID, may be null
      */
-    public static Object tryGetLoginId(){
+    public static Object tryGetLoginId() {
         try {
             return getTokenData().getLoginId();
         } catch (Exception e) {
@@ -378,9 +501,9 @@ public class AAUtil {
      * @return 登录类型，默认为"default"
      * @return login type, default is "default"
      */
-    public static String tryGetLoginType(){
+    public static String tryGetLoginType() {
         try {
-            return getTokenData().getLoginType().toString();
+            return getTokenData().getLoginType();
         } catch (Exception e) {
             return LOGIN_TYPE_DEFAULT;
         }
@@ -393,10 +516,10 @@ public class AAUtil {
      * @return token数据
      * @return token data
      */
-    public static TokenData getTokenData(){
+    public static TokenData getTokenData() {
         // 先从数据包装器中获取
         // First get from data wrapper
-        if (dataWrapper.getData() != null){
+        if (dataWrapper.getData() != null) {
             return dataWrapper.getData();
         }
 
@@ -406,18 +529,23 @@ public class AAUtil {
         if (MUtils.isBlank(token)) {
             throw new PermDeniedException("token is empty");
         }
-        
+
         // 构建token数据
         // Build token data
-        TokenData data=null;
-//        Map<String, Object> data = new HashMap<>();
-        if (redisTemplate != null){
+        TokenData data = null;
+        if (redisTemplate != null) {
             // 从Redis中获取
             // Get from Redis
-            data = (TokenData) redisTemplate.opsForValue().get(getTokenKey(token));
+            String tokenKey = getTokenKey(token);
+            data = (TokenData) redisTemplate.opsForValue().get(tokenKey);
+            if (data != null) {
+                Object record = redisTemplate.opsForValue().get(getLoginIdKeyWithSn(data));
+                if (record == null) {
 
-
-//            data=JSON.parseObject(JSON.toJSONString(result), TokenData.class);
+                    redisTemplate.delete(tokenKey);
+                    throw new NotLoginException("invalid token:"+token);
+                }
+            }
 
         } else if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 从JWT中获取
@@ -427,15 +555,15 @@ public class AAUtil {
             JWTValidator.of(jwt).validateDate();
             JSONObject payloads = jwt.getPayloads();
 
-            data=JSON.parseObject(JSON.toJSONString(payloads), TokenData.class);
+            data = JSON.parseObject(JSON.toJSONString(payloads), TokenData.class);
         }
-        
+
         // 检查数据是否为空
         // Check if data is empty
-        if (data==null){
-            throw new NotLoginException();
+        if (data == null) {
+            throw new NotLoginException("non-existent token:"+token);
         }
-        
+
         // 存储到数据包装器中
         // Store to data wrapper
         dataWrapper.setData(data);
@@ -450,23 +578,40 @@ public class AAUtil {
      * @return token string
      */
     public static String getRequestToken() {
-
         String token = getRequest().getHeader(apiAuthciProperty.getHeaders().getToken());
         return token;
     }
-    public static String getRequestDeviceType(){
 
+    /**
+     * 获取请求设备类型
+     * Get request device type
+     * 
+     * @return 设备类型
+     * @return device type
+     */
+    public static String getRequestDeviceType() {
         UserAgent userAgent = UserAgent.parseUserAgentString(getRequest().getHeader("User-Agent"));
         return userAgent.getOperatingSystem().getDeviceType().getName();
     }
 
+    /**
+     * 获取当前HTTP请求
+     * Get current HTTP request
+     * 
+     * @return HTTP请求
+     * @return HTTP request
+     */
     public static HttpServletRequest getRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
         return request;
     }
 
-    private static void redisCheck(){
+    /**
+     * 检查Redis是否存在
+     * Check if Redis exists
+     */
+    private static void redisCheck() {
         if (redisTemplate == null) {
             throw new IllegalCallerException("call this method must have a redis");
         }
@@ -479,7 +624,7 @@ public class AAUtil {
      * @param loginId 登录ID
      * @param loginId login ID
      */
-    public static void kickout(Object loginId){
+    public static void kickout(Object loginId) {
         redisCheck();
 
         List<String> keys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
@@ -489,23 +634,27 @@ public class AAUtil {
             tokens.forEach(token -> {keys.add(getTokenKey(token));});
         }
         redisTemplate.delete(keys);
-
     }
 
-    public static void kickout(String token){
+    /**
+     * 踢出用户（通过token使其登录失效）
+     * Kick out user (make login invalid by token)
+     * 
+     * @param token token字符串
+     * @param token token string
+     */
+    public static void kickout(String token) {
         redisCheck();
 
         String tokenKey = getTokenKey(token);
         TokenData data = (TokenData) redisTemplate.opsForValue().get(tokenKey);
+        if (data == null) {
+            return;
+        }
 
-//        if (result == null){
-//            return;
-//        }
-//        TokenData data = JSON.parseObject(JSON.toJSONString(result), TokenData.class);
-        List<String> delKeys = List.of(tokenKey, getLoginIdKeyWithSn(data.getLoginId(), data));
+        List<String> delKeys = List.of(tokenKey, getLoginIdKeyWithSn(data));
 
         redisTemplate.delete(delKeys);
-
     }
 
     /**
@@ -525,14 +674,21 @@ public class AAUtil {
      * 登出
      * Logout
      */
-    public static void logout(){
+    public static void logout() {
         kickout(getRequestToken());
         dataWrapper.setData(null);
     }
 
+    /**
+     * 获取用户的所有登录信息
+     * Get all login information of user
+     * 
+     * @param loginId 登录ID
+     * @param loginId login ID
+     * @return 登录信息列表
+     * @return login information list
+     */
     public static List<TokenData> getAllLoginInfo(Object loginId) {
-
-
         List<String> keys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
         List<Object> tokens = redisTemplate.opsForValue().multiGet(keys);
         if (tokens == null || tokens.size() == 0) {
@@ -549,16 +705,13 @@ public class AAUtil {
         for (int i = 0; i < tokenKeys.size(); i++) {
             TokenData data = dataList.get(i);
             String token = tokenKeys.get(i);
-            if (data!=null){
+            if (data != null) {
                 data.setToken(token);
             }
-
         }
 
         return dataList;
-
     }
-
 
     /**
      * 获取所有API权限
@@ -588,50 +741,78 @@ public class AAUtil {
     /**
      * 数据包装器类
      * Data wrapper class
+     * 
+     * 用于存储请求级别的数据，如token、设备类型等
+     * Used to store request-level data, such as token, device type, etc.
      */
     @Data
     public static class DataWrapper<T> {
         // 存储的数据
         // Stored data
         T data;
+        // token字符串
+        // token string
         String token;
+        // 设备类型
+        // device type
         String deviceType;
 
+        /**
+         * 获取token
+         * Get token
+         * 
+         * @return token字符串
+         * @return token string
+         */
         public String getToken() {
             if (token == null) {
-                return token=getRequestToken();
+                return token = getRequestToken();
             }
             return token;
         }
 
+        /**
+         * 获取设备类型
+         * Get device type
+         * 
+         * @return 设备类型
+         * @return device type
+         */
         public String getDeviceType() {
             if (deviceType == null) {
-                return deviceType=getRequestDeviceType();
+                return deviceType = getRequestDeviceType();
             }
             return deviceType;
         }
     }
 
+    /**
+     * Token数据类
+     * Token data class
+     * 
+     * 用于存储token相关的数据，如登录ID、登录类型、额外载荷等
+     * Used to store token-related data, such as login ID, login type, additional payload, etc.
+     */
     @Data
     @Accessors(chain = true)
-    public static class TokenData{
-
-
-        @JsonIgnore(value = true)
+    public static class TokenData {
+        // token字符串
+        // token string
         String token;
 
+        // 登录ID
+        // login ID
         Object loginId;
+        // 登录类型
+        // login type
         String loginType;
-        String sn = IdUtil.getSnowflakeNextId()+"";
+        // 序列号
+        // serial number
+        String sn = IdUtil.getSnowflakeNextId() + "";
+        // 额外载荷数据
+        // additional payload data
         Map<String, Object> payload;
-        String payloadStr;
 
-        public void setPayloadStr(String payloadStr) {
-            this.payloadStr = payloadStr;
-            payload= JSON.parseObject(payloadStr, new TypeReference<Map<String, Object>>() {});
-        }
     }
-
-
 
 }

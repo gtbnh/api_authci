@@ -2,6 +2,8 @@ package com.ci2.api_authci.config;
 
 import com.ci2.api_authci.interceptor.ApiAuthciInterceptor;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
+import com.ci2.api_authci.intf.PermValidator;
+import com.ci2.api_authci.intf.impl.ApiPermValidator;
 import com.ci2.api_authci.property.ApiAuthciProperty;
 import com.ci2.api_authci.util.AAUtil;
 import com.ci2.api_authci.util.MUtils;
@@ -18,13 +20,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+
+import java.lang.reflect.Proxy;
 
 /**
  * API 鉴权配置类
@@ -38,11 +42,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @EnableConfigurationProperties(ApiAuthciProperty.class)
 public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
 
-    // Redis模板，用于存储token
-    // Redis template, used to store tokens
-//    @Autowired(required = false)
-//    private RedisTemplate redisTemplate;
-
+    // Redis连接工厂
+    // Redis connection factory
     @Autowired(required = false)
     private RedisConnectionFactory redisConnectionFactory;
     
@@ -63,12 +64,18 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     @Lazy
     private ApiAuthciInterceptor apiAuthciInterceptor;
 
+    // Redisson客户端
+    // Redisson client
     @Autowired(required = false)
     private RedissonClient redissonClient;
 
+    // Redis分布式锁工具
+    // Redis distributed lock utility
     @Autowired
     @Lazy
     private RdUtil rdUtil;
+
+
 
     // 请求映射处理器
     // Request mapping handler
@@ -76,6 +83,10 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     @Qualifier("requestMappingHandlerMapping")
     @Lazy
     private RequestMappingHandlerMapping handlerMapping;
+
+    @Autowired
+    @Lazy
+    private PermValidator permValidator;
 
     /**
      * 创建数据包装器Bean
@@ -104,8 +115,9 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      */
     @Bean
     @ConditionalOnMissingBean
-    public ApiAuthciInterceptor apiAuthInterceptor(ApiAuthciProperty apiTokenProperty, ApiAuthciIntf apiAuthciIntf) {
-        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf);
+    public ApiAuthciInterceptor apiAuthInterceptor(ApiAuthciProperty apiTokenProperty, ApiAuthciIntf apiAuthciIntf,
+                                                   PermValidator permValidator) {
+        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf,permValidator);
     }
 
     /**
@@ -132,7 +144,6 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      */
     @Override
     public void afterPropertiesSet() {
-
         // 检查配置的有效性
         // Check configuration validity
         if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())
@@ -143,9 +154,12 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
                 && MUtils.isBlank(apiAuthciProperty.getSecretKey())) {
             throw new IllegalArgumentException("use the token type of jwt must have a secret key");
         }
-        RedisTemplate<String,Object> redisTemplate=null;
-        if (redisConnectionFactory!=null) {
-            redisTemplate=new RedisTemplate<>();
+        
+        // 创建Redis模板
+        // Create Redis template
+        RedisTemplate<String, Object> redisTemplate = null;
+        if (redisConnectionFactory != null) {
+            redisTemplate = new RedisTemplate<>();
             redisTemplate.setConnectionFactory(redisConnectionFactory);
             redisTemplate.setKeySerializer(new StringRedisSerializer());
 
@@ -155,12 +169,12 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
                     ObjectMapper.DefaultTyping.NON_FINAL,
                     JsonTypeInfo.As.PROPERTY
             );
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,false);
-
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
             redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer(mapper));
             redisTemplate.afterPropertiesSet();
         }
+        
         // 设置工具类的静态属性
         // Set static properties of utility class
         AAUtil.setRedisTemplate(redisTemplate);
@@ -168,6 +182,9 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
         AAUtil.setApiAuthciProperty(apiAuthciProperty);
         AAUtil.setDataWrapper(dataWrapper);
         AAUtil.setHandlerMapping(handlerMapping);
+        AAUtil.setPermValidator(permValidator);
+
+        AAUtil.postConstr();
     }
 
     /**
@@ -184,10 +201,24 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
                 " not implemented");
     }
 
+    /**
+     * 创建Redis分布式锁工具Bean
+     * Create Redis distributed lock utility bean
+     * 
+     * @param redissonClient Redisson客户端
+     * @param redissonClient Redisson client
+     * @return Redis分布式锁工具实例
+     * @return Redis distributed lock utility instance
+     */
     @Bean
     @ConditionalOnMissingBean
     public RdUtil rdUtil(RedissonClient redissonClient) {
         return new RdUtil(redissonClient);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public PermValidator permValidator() {
+        return new ApiPermValidator();
+    }
 }

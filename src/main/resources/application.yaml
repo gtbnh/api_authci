@@ -7,13 +7,41 @@ spring:
     name: api-authci
 
 
+# API 鉴权配置
+# API Authentication Configuration
 api-authci:
+  # 是否启用鉴权功能
+  # Whether to enable authentication functionality
   enabled: true
+  
+  # 请求头配置
+  # Request header configuration
   headers:
+    # token在请求头中的名字
+    # Token name in request header
     token: 'token'
+  
+  # Token类型，可选值：uuid, jwt
+  # Token type, optional values: uuid, jwt
   token-type: uuid
+  
+  # token 过期时间字符串，格式如 1ms 1s 1m 1h 1d 1M 1y
+  # Token expiration time string, format like 1ms 1s 1m 1h 1d 1M 1y
   expirationStr: '7d'
+  
+  # 公共资源，不需要鉴权的路径
+  # Public resources, paths that don't need authentication
   public-resource:
     - '/login'
+  
+  # JWT密钥（使用JWT token时必须配置）
+  # JWT secret key (must be configured when using JWT token)
   secret-key:
-
+  
+  # 最大允许登录设备数
+  # Maximum allowed login devices
+  max-allow-login-devices: 1
+  
+  # 每种设备类型允许的登录数
+  # Allowed login count per device type
+  per-device-type-allow-login-count: 99

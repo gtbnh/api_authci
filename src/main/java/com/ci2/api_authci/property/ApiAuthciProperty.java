@@ -57,8 +57,8 @@ public class ApiAuthciProperty {
     private String expirationStr = "7d";
     
     /**
-     * token 过期时间，单位ms
-     * Token expiration time, in milliseconds
+     * token 过期时间，单位ms，-1代表不过期
+     * Token expiration time, in milliseconds, -1 mean not expired
      */
     private Long expiration;
 
