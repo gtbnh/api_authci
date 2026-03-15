@@ -150,18 +150,7 @@
                     </execution>
                 </executions>
 
-                <configuration>
-                    <!-- 关键1：强制使用我们之前生成的 RSA 4096 密钥（防止用错 ed25519） -->
-                    <keyname>0D4CD864DEA526C2</keyname>
 
-                    <!-- 关键2：非交互模式（Windows + Maven 必备） -->
-                    <gpgArguments>
-                        <arg>--pinentry-mode=loopback</arg>
-                    </gpgArguments>
-
-                    <!-- 关键3：彻底删除这行！ -->
-                    <!-- <passphrase>你的密码</passphrase>  ← 删掉！ -->
-                </configuration>
             </plugin>
 
 
