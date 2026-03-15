@@ -9,7 +9,7 @@ import java.util.List;
 public interface PermValidator {
 
     default String getPerm(HandlerMethod handlerMethod){
-        return MUtils.getHandlerMethodMethod(handlerMethod)+MUtils.concatHandlerMethodUri(handlerMethod);
+        return MUtils.getHandlerMethodMethod(handlerMethod)+":"+MUtils.concatHandlerMethodUri(handlerMethod);
     };
 
     default boolean isPermitted(String method,String uri, List<String> perms){

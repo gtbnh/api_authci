@@ -2,6 +2,7 @@ package com.ci2.api_authci.interceptor;
 
 import com.ci2.api_authci.exception.PermDeniedException;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
+import com.ci2.api_authci.intf.PermValidator;
 import com.ci2.api_authci.property.ApiAuthciProperty;
 import com.ci2.api_authci.util.AAUtil;
 import com.ci2.api_authci.util.MUtils;
@@ -33,6 +34,8 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
     // Authentication interface implementation
     private ApiAuthciIntf apiAuthciIntf;
 
+    private PermValidator permValidator;
+
     /**
      * 构造函数
      * Constructor
@@ -42,9 +45,10 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
      * @param apiAuthciIntf 鉴权接口实现
      * @param apiAuthciIntf authentication interface implementation
      */
-    public ApiAuthciInterceptor(ApiAuthciProperty apiAuthciProperty, ApiAuthciIntf apiAuthciIntf) {
+    public ApiAuthciInterceptor(ApiAuthciProperty apiAuthciProperty, ApiAuthciIntf apiAuthciIntf, PermValidator permValidator) {
         this.apiAuthciProperty = apiAuthciProperty;
         this.apiAuthciIntf = apiAuthciIntf;
+        this.permValidator = permValidator;
     }
 
     /**
@@ -102,23 +106,8 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
         // Judge whether has permission
         boolean hasPerm = false;
         if (perms != null) {
-            for (int i = 0; i < perms.size(); i++) {
-                // 解析权限字符串，格式为 method:uri
-                // Parse permission string, format: method:uri
-                String[] perm = perms.get(i).trim().split("[:：]");
-                
-                // 检查请求方法是否匹配
-                // Check if request method matches
-                if (!"*".equals(perm[0]) && !method.equalsIgnoreCase(perm[0])) {
-                    continue;
-                }
-                
-                // 检查URI是否匹配
-                // Check if URI matches
-                if (Pattern.matches(perm[1].replaceAll("/\\*\\*", ".*?"), uri)) {
-                    hasPerm = true;
-                    break;
-                }
+            if (permValidator.isPermitted(method, uri, perms)) {
+                hasPerm = true;
             }
         }
 

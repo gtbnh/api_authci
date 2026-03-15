@@ -1,6 +1,8 @@
 package com.ci2.api_authci.intf.impl;
 
 import com.ci2.api_authci.intf.ApiAuthciIntf;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -14,6 +16,7 @@ import java.util.List;
  * 实际使用时，需要根据业务需求实现此接口，返回用户的实际权限列表
  * In actual use, you need to implement this interface according to business needs to return user's actual permission list
  */
+//@Component
 public class ApiAuthciImpl implements ApiAuthciIntf {
 
     /**

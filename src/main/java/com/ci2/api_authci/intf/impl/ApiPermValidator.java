@@ -24,10 +24,6 @@ public class ApiPermValidator implements PermValidator {
 
         // 检查URI是否匹配
         // Check if URI matches
-        if (Pattern.matches(ps[1].replaceAll("/\\*\\*", ".*?"), uri)) {
-            return true;
-
-        }
-        return false;
+        return Pattern.matches(ps[1].replaceAll("/\\*\\*", ".*?"), uri);
     }
 }

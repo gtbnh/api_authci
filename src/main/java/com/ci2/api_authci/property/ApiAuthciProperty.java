@@ -1,5 +1,10 @@
 package com.ci2.api_authci.property;
 
+import cn.hutool.crypto.digest.HmacAlgorithm;
+import cn.hutool.jwt.JWT;
+import cn.hutool.jwt.JWTUtil;
+import cn.hutool.jwt.signers.JWTSigner;
+import cn.hutool.jwt.signers.JWTSignerUtil;
 import com.ci2.api_authci.util.MUtils;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -49,7 +54,9 @@ public class ApiAuthciProperty {
      * JWT secret key
      */
     private String secretKey;
-    
+
+    private String algorithmId;
+
     /**
      * token 过期时间字符串，expiration 属性不存在时使用此属性
      * Token expiration time string, used when expiration property is not present
@@ -84,6 +91,7 @@ public class ApiAuthciProperty {
             expiration = parsed;
             return parsed;
         }
+
         return expiration;
     }
 

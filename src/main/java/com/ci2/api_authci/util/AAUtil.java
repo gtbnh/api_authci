@@ -3,6 +3,7 @@ package com.ci2.api_authci.util;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.jwt.JWT;
+import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.JWTValidator;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
@@ -78,10 +79,21 @@ public class AAUtil {
     // Data wrapper
     private static DataWrapper<TokenData> dataWrapper;
 
+    // 权限验证器
+    // Permission validator
     private static PermValidator permValidator;
 
+    // 初始化标记
+    // Initialization flag
     private static volatile boolean isInit = false;
 
+    /**
+     * 设置权限验证器
+     * Set permission validator
+     * 
+     * @param permValidator 权限验证器
+     * @param permValidator permission validator
+     */
     public static void setPermValidator(PermValidator permValidator) {
         checkInit();
         AAUtil.permValidator = permValidator;
@@ -146,10 +158,18 @@ public class AAUtil {
         AAUtil.handlerMapping = handlerMapping;
     }
 
+    /**
+     * 初始化完成后调用
+     * Call after initialization is complete
+     */
     public static void postConstr() {
         isInit = true;
     }
 
+    /**
+     * 检查是否已初始化
+     * Check if initialized
+     */
     public static void checkInit() {
         if (isInit) {
             throw new IllegalCallerException();
@@ -181,7 +201,7 @@ public class AAUtil {
 
         // 生成token
         // Generate token
-        String token = generaToken(dataJson);
+        String token = generateToken(dataJson);
 
         // 存储token到Redis
         // Store token to Redis
@@ -199,7 +219,7 @@ public class AAUtil {
 
                 // 处理每设备类型登录数量限制
                 // Handle per device type login count limit
-                if (idKeys.size() > apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
+                if (idKeys.size() >= apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
                     int count = 0;
                     String loginIdKey = getBasicLoginIdWithDTKey(loginId);
                     for (int n = idKeys.size() - 1; n >= 0; n--) {
@@ -238,10 +258,14 @@ public class AAUtil {
                 if (apiAuthciProperty.getExpiration() != -1) {
                     Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
                     redisTemplate.opsForValue().set(getTokenKey(token), data, expiration);
-                    redisTemplate.opsForValue().set(parseToLoginIdKey( data), token, expiration);
+                    // 生成并存储登录ID键（包含设备类型和序列号）
+                    // Generate and store login ID key (including device type and serial number)
+                    redisTemplate.opsForValue().set(parseToLoginIdKey(data), token, expiration);
                 } else {
                     redisTemplate.opsForValue().set(getTokenKey(token), data);
-                    redisTemplate.opsForValue().set(parseToLoginIdKey( data), token);
+                    // 生成并存储登录ID键（包含设备类型和序列号）
+                    // Generate and store login ID key (including device type and serial number)
+                    redisTemplate.opsForValue().set(parseToLoginIdKey(data), token);
                 }
 
             } finally {
@@ -315,13 +339,13 @@ public class AAUtil {
     }
 
     /**
-     * 获取用户ID对应的Redis键
-     * Get Redis key for user ID
+     * 获取带设备类型的登录ID键
+     * Get login ID key with device type
      * 
      * @param loginId 登录ID
      * @param loginId login ID
-     * @return Redis键
-     * @return Redis key
+     * @return 带设备类型的登录ID键
+     * @return login ID key with device type
      */
     private static String getBasicLoginIdWithDTKey(Object loginId) {
         return getBasicLoginIdWithDTKeySb(loginId).toString();
@@ -342,8 +366,8 @@ public class AAUtil {
     }
 
     /**
-     * 获取登录ID键构建器
-     * Get login ID key builder
+     * 获取带设备类型的登录ID键构建器
+     * Get login ID key builder with device type
      * 
      * @param loginId 登录ID
      * @param loginId login ID
@@ -354,7 +378,6 @@ public class AAUtil {
         return getBasicLoginIdKeySb(loginId).append("::").append(dataWrapper.getDeviceType());
     }
 
-
     /**
      * 生成token
      * Generate token
@@ -364,16 +387,21 @@ public class AAUtil {
      * @return token字符串
      * @return token string
      */
-    private static String generaToken(String payload) {
+    private static String generateToken(String payload) {
         if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 生成JWT token
             // Generate JWT token
-            String token = JWT.create()
-                    .setKey(apiAuthciProperty.getSecretKey().getBytes())
+            JWT jwt = JWT.create()
                     .setExpiresAt(new Date(System.currentTimeMillis() + apiAuthciProperty.getExpiration()))
-                    .addPayloads(JSON.parseObject(payload, new TypeReference<Map<String, Object>>() { }))
-                    .sign();
-            return token;
+                    .setPayload(TokenData.class.getSimpleName(), payload);
+            if (apiAuthciProperty.getAlgorithmId()==null) {
+                jwt.setKey(apiAuthciProperty.getSecretKey().getBytes());
+            }else {
+                jwt.setSigner(apiAuthciProperty.getAlgorithmId(), apiAuthciProperty.getSecretKey().getBytes());
+            }
+
+            return jwt.sign();
+
         } else if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())) {
             // 生成UUID token
             // Generate UUID token
@@ -516,7 +544,15 @@ public class AAUtil {
         if (MUtils.isBlank(token)) {
             throw new PermDeniedException("token is empty");
         }
+        TokenData data = getTokenData(token);
+        // 存储到数据包装器中
+        // Store to data wrapper
+        dataWrapper.setData(data);
 
+        return data;
+    }
+
+    public static TokenData getTokenData(String token){
         // 构建token数据
         // Build token data
         TokenData data = null;
@@ -526,35 +562,43 @@ public class AAUtil {
             String tokenKey = getTokenKey(token);
             data = (TokenData) redisTemplate.opsForValue().get(tokenKey);
             if (data != null) {
+                // 解析并验证登录ID键
+                // Parse and verify login ID key
                 Object record = redisTemplate.opsForValue().get(parseToLoginIdKey(data));
                 if (record == null) {
-
+                    // token无效，删除并抛出异常
+                    // Token invalid, delete and throw exception
                     redisTemplate.delete(tokenKey);
-                    throw new NotLoginException("invalid token:"+token);
+                    throw new NotLoginException("invalid token:" + token);
                 }
             }
 
         } else if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
             // 从JWT中获取
             // Get from JWT
-            JWT jwt = JWT.create().parse(token)
-                    .setKey(apiAuthciProperty.getSecretKey().getBytes());
+            JWT jwt = JWTUtil.parseToken(token);
+            if (apiAuthciProperty.getAlgorithmId()==null) {
+                jwt.setKey(apiAuthciProperty.getSecretKey().getBytes());
+            }else {
+                jwt.setSigner(apiAuthciProperty.getAlgorithmId(), apiAuthciProperty.getSecretKey().getBytes());
+            }
+
             JWTValidator.of(jwt).validateDate();
             JSONObject payloads = jwt.getPayloads();
 
-            data = JSON.parseObject(JSON.toJSONString(payloads), TokenData.class);
+            data = JSON.parseObject(
+                    payloads.get(TokenData.class.getSimpleName(),String.class),
+                    TokenData.class);
         }
 
         // 检查数据是否为空
         // Check if data is empty
         if (data == null) {
-            throw new NotLoginException("non-existent token:"+token);
+            throw new NotLoginException("non-existent token:" + token);
         }
 
-        // 存储到数据包装器中
-        // Store to data wrapper
-        dataWrapper.setData(data);
         return data;
+
     }
 
     /**
@@ -639,11 +683,31 @@ public class AAUtil {
             return;
         }
 
+        // 解析登录ID键并删除
+        // Parse login ID key and delete
         List<String> delKeys = List.of(tokenKey, parseToLoginIdKey(data));
 
         redisTemplate.delete(delKeys);
     }
-    // full
+
+    /**
+     * 解析TokenData生成登录ID键
+     * Parse TokenData to generate login ID key
+     * 
+     * 登录ID键格式：authci::id::{loginId}::{deviceType}::{sn}
+     * Login ID key format: authci::id::{loginId}::{deviceType}::{sn}
+     * 
+     * 该方法将TokenData中的登录ID、设备类型和序列号组合成一个唯一的Redis键，
+     * 用于存储登录ID与token之间的映射关系。
+     * This method combines the login ID, device type, and serial number from TokenData
+     * to form a unique Redis key, which is used to store the mapping relationship
+     * between login ID and token.
+     * 
+     * @param data Token数据
+     * @param data Token data
+     * @return 登录ID键
+     * @return login ID key
+     */
     public static String parseToLoginIdKey(TokenData data) {
         return getBasicLoginIdKeySb(data.getLoginId())
                 .append("::").append(data.getDeviceType())
@@ -714,21 +778,16 @@ public class AAUtil {
      * @return permission list
      */
     public static List<String> getAllApiPerms() {
-        List<String> perms = new ArrayList<>();
 
         if (handlerMapping == null) {
-            return perms;
+            return List.of();
         }
 
         // 遍历所有处理器方法，生成权限字符串
         // Traverse all handler methods, generate permission strings
-        handlerMapping.getHandlerMethods()
-                .values().forEach(handler -> {
-                    perms.add(MUtils.getHandlerMethodMethod(handler) + ":"
-                            + MUtils.concatHandlerMethodUri(handler));
-                });
+        return handlerMapping.getHandlerMethods()
+                .values().stream().map(permValidator::getPerm).toList();
 
-        return perms;
     }
 
     /**
@@ -799,10 +858,18 @@ public class AAUtil {
         // 登录类型
         // login type
         String loginType;
-        // 序列号
-        // serial number
+        // 序列号（用于生成唯一的登录ID键）
+        // Serial number (used to generate unique login ID key)
+        // 
+        // 使用雪花算法生成唯一的序列号，确保在同一设备类型下，
+        // 同一个登录ID可以生成多个不同的登录ID键，支持多设备登录。
+        // Uses snowflake algorithm to generate unique serial number, ensuring that
+        // the same login ID can generate multiple different login ID keys under
+        // the same device type, supporting multi-device login.
         String sn = IdUtil.getSnowflakeNextId() + "";
 
+        // 设备类型
+        // device type
         String deviceType;
         // 额外载荷数据
         // additional payload data
