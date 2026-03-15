@@ -2,8 +2,6 @@ package com.ci2.api_authci.config;
 
 import com.ci2.api_authci.interceptor.ApiAuthciInterceptor;
 import com.ci2.api_authci.intf.ApiAuthciIntf;
-import com.ci2.api_authci.intf.PermValidator;
-import com.ci2.api_authci.intf.impl.ApiPermValidator;
 import com.ci2.api_authci.property.ApiAuthciProperty;
 import com.ci2.api_authci.util.AAUtil;
 import com.ci2.api_authci.util.MUtils;
@@ -20,15 +18,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-
-import java.lang.reflect.Proxy;
 
 /**
  * API 鉴权配置类
@@ -75,18 +71,12 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     @Lazy
     private RdUtil rdUtil;
 
-
-
     // 请求映射处理器
     // Request mapping handler
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
     @Lazy
     private RequestMappingHandlerMapping handlerMapping;
-
-    @Autowired
-    @Lazy
-    private PermValidator permValidator;
 
     /**
      * 创建数据包装器Bean
@@ -115,9 +105,8 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      */
     @Bean
     @ConditionalOnMissingBean
-    public ApiAuthciInterceptor apiAuthInterceptor(ApiAuthciProperty apiTokenProperty, ApiAuthciIntf apiAuthciIntf,
-                                                   PermValidator permValidator) {
-        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf,permValidator);
+    public ApiAuthciInterceptor apiAuthInterceptor(ApiAuthciProperty apiTokenProperty, ApiAuthciIntf apiAuthciIntf) {
+        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf);
     }
 
     /**
@@ -182,9 +171,6 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
         AAUtil.setApiAuthciProperty(apiAuthciProperty);
         AAUtil.setDataWrapper(dataWrapper);
         AAUtil.setHandlerMapping(handlerMapping);
-        AAUtil.setPermValidator(permValidator);
-
-        AAUtil.postConstr();
     }
 
     /**
@@ -216,9 +202,4 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
         return new RdUtil(redissonClient);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public PermValidator permValidator() {
-        return new ApiPermValidator();
-    }
 }

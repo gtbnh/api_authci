@@ -10,13 +10,11 @@ import com.ci2.api_authci.exception.NotLoginException;
 import com.ci2.api_authci.exception.PermDeniedException;
 import com.ci2.api_authci.intf.PermValidator;
 import com.ci2.api_authci.property.ApiAuthciProperty;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import eu.bitwalker.useragentutils.UserAgent;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.experimental.Accessors;
 import org.redisson.api.RLock;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -176,6 +174,7 @@ public class AAUtil {
         // Build payload
         TokenData data = new TokenData();
         data.setLoginId(loginId).setLoginType(loginType)
+                .setDeviceType(dataWrapper.getDeviceType())
                 .setPayload(payload);
 
         String dataJson = JSON.toJSONString(data);
@@ -202,7 +201,7 @@ public class AAUtil {
                 // Handle per device type login count limit
                 if (idKeys.size() > apiAuthciProperty.getPerDeviceTypeAllowLoginCount()) {
                     int count = 0;
-                    String loginIdKey = getLoginIdKey(loginId);
+                    String loginIdKey = getBasicLoginIdWithDTKey(loginId);
                     for (int n = idKeys.size() - 1; n >= 0; n--) {
                         String idKey = idKeys.get(n);
                         if (idKey.startsWith(loginIdKey)) {
@@ -239,10 +238,10 @@ public class AAUtil {
                 if (apiAuthciProperty.getExpiration() != -1) {
                     Duration expiration = Duration.ofMillis(apiAuthciProperty.getExpiration());
                     redisTemplate.opsForValue().set(getTokenKey(token), data, expiration);
-                    redisTemplate.opsForValue().set(getLoginIdKeyWithSn( data), token, expiration);
+                    redisTemplate.opsForValue().set(parseToLoginIdKey( data), token, expiration);
                 } else {
                     redisTemplate.opsForValue().set(getTokenKey(token), data);
-                    redisTemplate.opsForValue().set(getLoginIdKeyWithSn( data), token);
+                    redisTemplate.opsForValue().set(parseToLoginIdKey( data), token);
                 }
 
             } finally {
@@ -324,8 +323,8 @@ public class AAUtil {
      * @return Redis键
      * @return Redis key
      */
-    private static String getLoginIdKey(Object loginId) {
-        return getLoginIdKeySb(loginId).toString();
+    private static String getBasicLoginIdWithDTKey(Object loginId) {
+        return getBasicLoginIdWithDTKeySb(loginId).toString();
     }
 
     /**
@@ -351,22 +350,10 @@ public class AAUtil {
      * @return 键构建器
      * @return key builder
      */
-    private static StringBuilder getLoginIdKeySb(Object loginId) {
+    private static StringBuilder getBasicLoginIdWithDTKeySb(Object loginId) {
         return getBasicLoginIdKeySb(loginId).append("::").append(dataWrapper.getDeviceType());
     }
 
-    /**
-     * 获取带序列号的登录ID键
-     * Get login ID key with serial number
-     *
-     * @param tokenData token数据
-     * @param tokenData token data
-     * @return 带序列号的登录ID键
-     * @return login ID key with serial number
-     */
-    private static String getLoginIdKeyWithSn( TokenData tokenData) {
-        return getLoginIdKeySb(tokenData.getLoginId()).append("::").append(tokenData.getSn()).toString();
-    }
 
     /**
      * 生成token
@@ -539,7 +526,7 @@ public class AAUtil {
             String tokenKey = getTokenKey(token);
             data = (TokenData) redisTemplate.opsForValue().get(tokenKey);
             if (data != null) {
-                Object record = redisTemplate.opsForValue().get(getLoginIdKeyWithSn(data));
+                Object record = redisTemplate.opsForValue().get(parseToLoginIdKey(data));
                 if (record == null) {
 
                     redisTemplate.delete(tokenKey);
@@ -643,7 +630,7 @@ public class AAUtil {
      * @param token token字符串
      * @param token token string
      */
-    public static void kickout(String token) {
+    public static void kickoutByToken(String token) {
         redisCheck();
 
         String tokenKey = getTokenKey(token);
@@ -652,9 +639,15 @@ public class AAUtil {
             return;
         }
 
-        List<String> delKeys = List.of(tokenKey, getLoginIdKeyWithSn(data));
+        List<String> delKeys = List.of(tokenKey, parseToLoginIdKey(data));
 
         redisTemplate.delete(delKeys);
+    }
+    // full
+    public static String parseToLoginIdKey(TokenData data) {
+        return getBasicLoginIdKeySb(data.getLoginId())
+                .append("::").append(data.getDeviceType())
+                .append("::").append(data.getSn()).toString();
     }
 
     /**
@@ -675,7 +668,7 @@ public class AAUtil {
      * Logout
      */
     public static void logout() {
-        kickout(getRequestToken());
+        kickoutByToken(getRequestToken());
         dataWrapper.setData(null);
     }
 
@@ -809,6 +802,8 @@ public class AAUtil {
         // 序列号
         // serial number
         String sn = IdUtil.getSnowflakeNextId() + "";
+
+        String deviceType;
         // 额外载荷数据
         // additional payload data
         Map<String, Object> payload;
