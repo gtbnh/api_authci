@@ -8,23 +8,32 @@
         <version>3.5.11</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.ci2</groupId>
+    <groupId>io.github.gtbnh</groupId>
     <artifactId>api_authci</artifactId>
     <version>1.0.0</version>
     <name>api_authci</name>
-    <description>api_authci</description>
-    <url/>
+
+    <description>A lightweight authorization framework based on HTTP method and API path
+        (e.g., GET:/user/list) for Spring Boot applications.</description>
+    <url>https://github.com/gtbnh/api_authci</url>
+
     <licenses>
-        <license/>
+        <license>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
     </licenses>
     <developers>
-        <developer/>
+        <developer>
+            <name>gtbnh</name>
+            <email>xyxx12684@gmail.com</email>
+            <organizationUrl>https://github.com/gtbnh</organizationUrl>
+        </developer>
     </developers>
     <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
+        <connection>scm:git:git://github.com/gtbnh/api_authci.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/gtbnh/api_authci.git</developerConnection>
+        <url>https://github.com/gtbnh/api_authci</url>
     </scm>
     <properties>
         <java.version>17</java.version>
@@ -104,6 +113,64 @@
                             <goal>jar-no-fork</goal>  <!-- 或 jar -->
                         </goals>
                         <phase>package</phase>     <!-- 关键：绑定到 package 阶段 -->
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals><goal>jar</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- GPG 签名（必须） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.2.7</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals><goal>sign</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 关键：Nexus Staging 插件，用于上传到 Sonatype staging 并 close/release -->
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.7.0</version>  <!-- 最新稳定版，检查 https://mvnrepository.com/artifact/org.sonatype.plugins/nexus-staging-maven-plugin -->
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>central</serverId>           <!-- 对应 settings.xml 的 <id>central</id> -->
+                    <nexusUrl>https://s01.oss.sonatype.org</nexusUrl>  <!-- 注意：2025年后用 s01 而非 ossrh -->
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>  <!-- 自动 release，省一步手动 -->
+                </configuration>
+            </plugin>
+
+            <!-- 可选但推荐：enforcer 确保 metadata 完整 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-maven</id>
+                        <goals><goal>enforce</goal></goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>3.6.3</version>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

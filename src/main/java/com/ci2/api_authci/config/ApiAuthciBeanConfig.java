@@ -110,8 +110,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 创建数据包装器Bean
      * Create data wrapper bean
      *
-     * @return 数据包装器实例
-     * @return data wrapper instance
+     * @return 数据包装器实例 data wrapper instance
      */
     @Bean
     @ConditionalOnMissingBean
@@ -124,12 +123,9 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 创建鉴权拦截器Bean
      * Create authentication interceptor bean
      *
-     * @param apiTokenProperty 配置属性
-     * @param apiTokenProperty configuration properties
-     * @param apiAuthciIntf    鉴权接口实现
-     * @param apiAuthciIntf    authentication interface implementation
-     * @return 鉴权拦截器实例
-     * @return authentication interceptor instance
+     * @param apiTokenProperty 配置属性 configuration properties
+     * @param apiAuthciIntf    鉴权接口实现    authentication interface implementation
+     * @return 鉴权拦截器实例 authentication interceptor instance
      */
     @Bean
     @ConditionalOnMissingBean
@@ -148,8 +144,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 添加拦截器
      * Add interceptor
      *
-     * @param registry 拦截器注册表
-     * @param registry interceptor registry
+     * @param registry 拦截器注册表 interceptor registry
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -164,8 +159,6 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 初始化方法
      * Initialization method
      *
-     * @throws Exception 异常
-     * @throws Exception exception
      */
     @Override
     public void afterPropertiesSet() {
@@ -227,8 +220,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 创建鉴权接口实现Bean
      * Create authentication interface implementation bean
      *
-     * @return 鉴权接口实现实例
-     * @return authentication interface implementation instance
+     * @return 鉴权接口实现实例 authentication interface implementation instance
      */
     @Bean
     @ConditionalOnMissingBean
@@ -241,8 +233,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
      * 创建Redis分布式锁工具Bean
      * Create Redis distributed lock utility bean
      *
-     * @return Redis分布式锁工具实例
-     * @return Redis distributed lock utility instance
+     * @return Redis分布式锁工具实例 Redis distributed lock utility instance
      */
     @Bean
     @ConditionalOnMissingBean

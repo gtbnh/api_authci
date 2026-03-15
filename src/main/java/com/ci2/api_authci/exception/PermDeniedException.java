@@ -20,9 +20,7 @@ public class PermDeniedException extends RuntimeException {
      * 构造函数
      * Constructor
      * 
-     * @param message 异常消息
-     * @param message exception message
-     */
+     * @param message 异常消息 exception message     */
     public PermDeniedException(String message) {
         super(message);
     }

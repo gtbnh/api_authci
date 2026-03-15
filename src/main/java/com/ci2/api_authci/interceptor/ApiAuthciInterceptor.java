@@ -40,10 +40,8 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
      * 构造函数
      * Constructor
      * 
-     * @param apiAuthciProperty 配置属性
-     * @param apiAuthciProperty configuration properties
-     * @param apiAuthciIntf 鉴权接口实现
-     * @param apiAuthciIntf authentication interface implementation
+     * @param apiAuthciProperty 配置属性 configuration properties
+     * @param apiAuthciIntf 鉴权接口实现 authentication interface implementation
      */
     public ApiAuthciInterceptor(ApiAuthciProperty apiAuthciProperty, ApiAuthciIntf apiAuthciIntf, PermValidator permValidator) {
         this.apiAuthciProperty = apiAuthciProperty;
@@ -54,17 +52,12 @@ public class ApiAuthciInterceptor implements HandlerInterceptor {
     /**
      * 请求处理前的拦截方法
      * Interception method before request processing
-     * 
-     * @param request HTTP请求
-     * @param request HTTP request
-     * @param response HTTP响应
-     * @param response HTTP response
-     * @param handler 处理器
-     * @param handler handler
-     * @return 是否允许请求继续执行
-     * @return whether to allow the request to continue execution
-     * @throws Exception 异常
-     * @throws Exception exception
+     *
+     * @param request HTTP请求 HTTP request
+     * @param response HTTP响应 HTTP response
+     * @param handler 处理器 handler
+     * @return 是否允许请求继续执行 whether to allow the request to continue execution
+     * @throws Exception 异常 Exception exception
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {

@@ -13,13 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class ApiAuthciApplication {
 
-    /**
-     * 主方法
-     * Main method
-     * 
-     * @param args 命令行参数
-     * @param args command line arguments
-     */
+
     public static void main(String[] args) {
         SpringApplication.run(ApiAuthciApplication.class, args);
     }

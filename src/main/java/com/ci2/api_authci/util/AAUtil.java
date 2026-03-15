@@ -91,8 +91,7 @@ public class AAUtil {
      * 设置权限验证器
      * Set permission validator
      * 
-     * @param permValidator 权限验证器
-     * @param permValidator permission validator
+     * @param permValidator 权限验证器 permission validator
      */
     public static void setPermValidator(PermValidator permValidator) {
         checkInit();
@@ -103,8 +102,7 @@ public class AAUtil {
      * 设置配置属性
      * Set configuration properties
      * 
-     * @param apiAuthciProperty 配置属性
-     * @param apiAuthciProperty configuration properties
+     * @param apiAuthciProperty 配置属性 configuration properties
      */
     public static void setApiAuthciProperty(ApiAuthciProperty apiAuthciProperty) {
         checkInit();
@@ -115,8 +113,7 @@ public class AAUtil {
      * 设置Redis模板
      * Set Redis template
      * 
-     * @param redisTemplate Redis模板
-     * @param redisTemplate Redis template
+     * @param redisTemplate Redis模板 Redis template
      */
     public static void setRedisTemplate(RedisTemplate redisTemplate) {
         checkInit();
@@ -127,8 +124,7 @@ public class AAUtil {
      * 设置数据包装器
      * Set data wrapper
      * 
-     * @param dataWrapper 数据包装器
-     * @param dataWrapper data wrapper
+     * @param dataWrapper 数据包装器 data wrapper
      */
     public static void setDataWrapper(DataWrapper<TokenData> dataWrapper) {
         checkInit();
@@ -139,8 +135,7 @@ public class AAUtil {
      * 设置Redis分布式锁工具
      * Set Redis distributed lock utility
      * 
-     * @param rdUtil Redis分布式锁工具
-     * @param rdUtil Redis distributed lock utility
+     * @param rdUtil Redis分布式锁工具 Redis distributed lock utility
      */
     public static void setRdUtil(RdUtil rdUtil) {
         checkInit();
@@ -151,8 +146,7 @@ public class AAUtil {
      * 设置请求映射处理器
      * Set request mapping handler
      * 
-     * @param handlerMapping 请求映射处理器
-     * @param handlerMapping request mapping handler
+     * @param handlerMapping 请求映射处理器 request mapping handler
      */
     public static void setHandlerMapping(RequestMappingHandlerMapping handlerMapping) {
         AAUtil.handlerMapping = handlerMapping;
@@ -180,14 +174,10 @@ public class AAUtil {
      * 生成token
      * Generate token
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @param loginType 登录类型
-     * @param loginType login type
-     * @param payload 额外载荷数据
-     * @param payload additional payload data
-     * @return token字符串
-     * @return token string
+     * @param loginId 登录ID login ID
+     * @param loginType 登录类型 login type
+     * @param payload 额外载荷数据 additional payload data
+     * @return token字符串 token string
      */
     public static String getToken(Object loginId, String loginType, Map<String, Object> payload) {
         // 构建payload
@@ -284,10 +274,8 @@ public class AAUtil {
      * 获取锁的键
      * Get lock key
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 锁的键
-     * @return lock key
+     * @param loginId 登录ID login ID
+     * @return 锁的键 lock key
      */
     private static String getLockKey(Object loginId) {
         return LOCK_REDIS_KEY + loginId.toString();
@@ -297,10 +285,8 @@ public class AAUtil {
      * 获取登录ID键的模式
      * Get login ID key pattern
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 键的模式
-     * @return key pattern
+     * @param loginId 登录ID login ID
+     * @return 键的模式 key pattern
      */
     private static String getLoginIdKeyPattern(Object loginId) {
         return getBasicLoginIdKeySb(loginId).append("::*").toString();
@@ -310,10 +296,8 @@ public class AAUtil {
      * 获取所有匹配的键列表
      * Get all matching key list
      * 
-     * @param pattern 键的模式
-     * @param pattern key pattern
-     * @return 匹配的键列表
-     * @return matching key list
+     * @param pattern 键的模式 key pattern
+     * @return 匹配的键列表 matching key list
      */
     public static List<String> getAllMatchKeyList(String pattern) {
         redisCheck();
@@ -342,10 +326,8 @@ public class AAUtil {
      * 获取带设备类型的登录ID键
      * Get login ID key with device type
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 带设备类型的登录ID键
-     * @return login ID key with device type
+     * @param loginId 登录ID login ID
+     * @return 带设备类型的登录ID键 login ID key with device type
      */
     private static String getBasicLoginIdWithDTKey(Object loginId) {
         return getBasicLoginIdWithDTKeySb(loginId).toString();
@@ -355,10 +337,8 @@ public class AAUtil {
      * 获取基本的登录ID键构建器
      * Get basic login ID key builder
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 键构建器
-     * @return key builder
+     * @param loginId 登录ID login ID
+     * @return 键构建器 key builder
      */
     private static StringBuilder getBasicLoginIdKeySb(Object loginId) {
         StringBuilder sb = new StringBuilder(ID_TOKEN_REDIS_KEY);
@@ -369,10 +349,8 @@ public class AAUtil {
      * 获取带设备类型的登录ID键构建器
      * Get login ID key builder with device type
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 键构建器
-     * @return key builder
+     * @param loginId 登录ID login ID
+     * @return 键构建器 key builder
      */
     private static StringBuilder getBasicLoginIdWithDTKeySb(Object loginId) {
         return getBasicLoginIdKeySb(loginId).append("::").append(dataWrapper.getDeviceType());
@@ -382,10 +360,8 @@ public class AAUtil {
      * 生成token
      * Generate token
      * 
-     * @param payload 载荷数据
-     * @param payload payload data
-     * @return token字符串
-     * @return token string
+     * @param payload 载荷数据 payload data
+     * @return token字符串 token string
      */
     private static String generateToken(String payload) {
         if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())) {
@@ -415,10 +391,8 @@ public class AAUtil {
      * 生成token（使用默认登录类型）
      * Generate token (using default login type)
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return token字符串
-     * @return token string
+     * @param loginId 登录ID login ID
+     * @return token字符串 token string
      */
     public static String getToken(Object loginId) {
         return getToken(loginId, LOGIN_TYPE_DEFAULT, null);
@@ -428,12 +402,9 @@ public class AAUtil {
      * 生成token（使用默认登录类型和自定义载荷）
      * Generate token (using default login type and custom payload)
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @param payload 额外载荷数据
-     * @param payload additional payload data
-     * @return token字符串
-     * @return token string
+     * @param loginId 登录ID login ID
+     * @param payload 额外载荷数据 additional payload data
+     * @return token字符串 token string
      */
     public static String getToken(Object loginId, Map<String, Object> payload) {
         return getToken(loginId, LOGIN_TYPE_DEFAULT, payload);
@@ -443,8 +414,7 @@ public class AAUtil {
      * 获取token中的载荷数据
      * Get payload data from token
      * 
-     * @return 载荷数据
-     * @return payload data
+     * @return 载荷数据 payload data
      */
     public static Map<String, Object> getPayload() {
         return getTokenData().getPayload();
@@ -454,8 +424,7 @@ public class AAUtil {
      * 获取登录ID
      * Get login ID
      * 
-     * @return 登录ID
-     * @return login ID
+     * @return 登录ID login ID
      */
     public static Object getLoginId() {
         return getTokenData().getLoginId();
@@ -465,8 +434,7 @@ public class AAUtil {
      * 获取登录ID（转换为Long）
      * Get login ID (convert to Long)
      * 
-     * @return 登录ID
-     * @return login ID
+     * @return 登录ID login ID
      */
     public static Long getLoginIdAsLong() {
         return Long.valueOf(getLoginId().toString());
@@ -476,8 +444,7 @@ public class AAUtil {
      * 获取登录ID（转换为String）
      * Get login ID (convert to String)
      * 
-     * @return 登录ID
-     * @return login ID
+     * @return 登录ID login ID
      */
     public static String getLoginIdAsString() {
         return getLoginId().toString();
@@ -487,8 +454,7 @@ public class AAUtil {
      * 获取登录类型
      * Get login type
      * 
-     * @return 登录类型
-     * @return login type
+     * @return 登录类型 login type
      */
     public static String getLoginType() {
         return getTokenData().getLoginType();
@@ -498,8 +464,7 @@ public class AAUtil {
      * 尝试获取登录ID（不抛出异常）
      * Try to get login ID (without throwing exception)
      * 
-     * @return 登录ID，可能为null
-     * @return login ID, may be null
+     * @return 登录ID，可能为null login ID, may be null
      */
     public static Object tryGetLoginId() {
         try {
@@ -513,8 +478,7 @@ public class AAUtil {
      * 尝试获取登录类型（不抛出异常）
      * Try to get login type (without throwing exception)
      * 
-     * @return 登录类型，默认为"default"
-     * @return login type, default is "default"
+     * @return 登录类型，默认为"default" login type, default is "default"
      */
     public static String tryGetLoginType() {
         try {
@@ -528,8 +492,7 @@ public class AAUtil {
      * 获取token数据
      * Get token data
      * 
-     * @return token数据
-     * @return token data
+     * @return token数据 token data
      */
     public static TokenData getTokenData() {
         // 先从数据包装器中获取
@@ -605,8 +568,7 @@ public class AAUtil {
      * 获取请求中的token
      * Get token from request
      * 
-     * @return token字符串
-     * @return token string
+     * @return token字符串 token string
      */
     public static String getRequestToken() {
         String token = getRequest().getHeader(apiAuthciProperty.getHeaders().getToken());
@@ -617,8 +579,7 @@ public class AAUtil {
      * 获取请求设备类型
      * Get request device type
      * 
-     * @return 设备类型
-     * @return device type
+     * @return 设备类型 device type
      */
     public static String getRequestDeviceType() {
         UserAgent userAgent = UserAgent.parseUserAgentString(getRequest().getHeader("User-Agent"));
@@ -629,8 +590,7 @@ public class AAUtil {
      * 获取当前HTTP请求
      * Get current HTTP request
      * 
-     * @return HTTP请求
-     * @return HTTP request
+     * @return HTTP请求 HTTP request
      */
     public static HttpServletRequest getRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -652,8 +612,7 @@ public class AAUtil {
      * 踢出用户（使其登录失效）
      * Kick out user (make login invalid)
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
+     * @param loginId 登录ID login ID
      */
     public static void kickout(Object loginId) {
         redisCheck();
@@ -671,8 +630,7 @@ public class AAUtil {
      * 踢出用户（通过token使其登录失效）
      * Kick out user (make login invalid by token)
      * 
-     * @param token token字符串
-     * @param token token string
+     * @param token token字符串 token string
      */
     public static void kickoutByToken(String token) {
         redisCheck();
@@ -703,10 +661,8 @@ public class AAUtil {
      * to form a unique Redis key, which is used to store the mapping relationship
      * between login ID and token.
      * 
-     * @param data Token数据
-     * @param data Token data
-     * @return 登录ID键
-     * @return login ID key
+     * @param data Token数据 Token data
+     * @return 登录ID键 login ID key
      */
     public static String parseToLoginIdKey(TokenData data) {
         return getBasicLoginIdKeySb(data.getLoginId())
@@ -718,10 +674,8 @@ public class AAUtil {
      * 获取token对应的Redis键
      * Get Redis key for token
      * 
-     * @param token token字符串
-     * @param token token string
-     * @return Redis键
-     * @return Redis key
+     * @param token token字符串 token string
+     * @return Redis键 Redis key
      */
     private static String getTokenKey(Object token) {
         return TOKEN_DATA_REDIS_KEY + token;
@@ -740,10 +694,8 @@ public class AAUtil {
      * 获取用户的所有登录信息
      * Get all login information of user
      * 
-     * @param loginId 登录ID
-     * @param loginId login ID
-     * @return 登录信息列表
-     * @return login information list
+     * @param loginId 登录ID login ID
+     * @return 登录信息列表 login information list
      */
     public static List<TokenData> getAllLoginInfo(Object loginId) {
         List<String> keys = getAllMatchKeyList(getLoginIdKeyPattern(loginId));
@@ -774,8 +726,7 @@ public class AAUtil {
      * 获取所有API权限
      * Get all API permissions
      * 
-     * @return 权限列表
-     * @return permission list
+     * @return 权限列表 permission list
      */
     public static List<String> getAllApiPerms() {
 
@@ -813,8 +764,7 @@ public class AAUtil {
          * 获取token
          * Get token
          * 
-         * @return token字符串
-         * @return token string
+         * @return token字符串 token string
          */
         public String getToken() {
             if (token == null) {
@@ -827,8 +777,7 @@ public class AAUtil {
          * 获取设备类型
          * Get device type
          * 
-         * @return 设备类型
-         * @return device type
+         * @return 设备类型 device type
          */
         public String getDeviceType() {
             if (deviceType == null) {

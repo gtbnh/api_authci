@@ -1,10 +1,5 @@
 package com.ci2.api_authci.property;
 
-import cn.hutool.crypto.digest.HmacAlgorithm;
-import cn.hutool.jwt.JWT;
-import cn.hutool.jwt.JWTUtil;
-import cn.hutool.jwt.signers.JWTSigner;
-import cn.hutool.jwt.signers.JWTSignerUtil;
 import com.ci2.api_authci.util.MUtils;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -82,8 +77,7 @@ public class ApiAuthciProperty {
      * 获取token过期时间
      * Get token expiration time
      * 
-     * @return 过期时间，单位ms
-     * @return expiration time, in milliseconds
+     * @return 过期时间，单位ms expiration time, in milliseconds
      */
     public long getExpiration() {
         if (expiration == null) {

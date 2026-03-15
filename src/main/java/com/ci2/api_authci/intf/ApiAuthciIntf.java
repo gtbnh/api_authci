@@ -15,12 +15,9 @@ public interface ApiAuthciIntf {
      * 获取用户权限列表
      * Get user permission list
      * 
-     * @param loginId 登录id 可能为 null
-     * @param loginId login id, may be null
-     * @param loginType 登录类型
-     * @param loginType login type
-     * @return 权限格式 method:uri
-     * @return permission format: method:uri
+     * @param loginId 登录id 可能为 null login id, may be null
+     * @param loginType 登录类型 login type
+     * @return 权限格式 method:uri permission format: method:uri
      * 例如 get:/user    post:/user    *:/user/**
      * For example: get:/user    post:/user    *:/user/**
      */

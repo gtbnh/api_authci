@@ -43,10 +43,7 @@ public class MUtils {
      * 判断字符串是否为空
      * Judge whether string is empty
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 是否为空
-     * @return whether is empty
+     * @param s 字符串 string 是否为空 whether is empty
      */
     public static boolean isEmpty(String s) {
         return s == null || s.length() == 0;
@@ -56,10 +53,8 @@ public class MUtils {
      * 判断字符串是否不为空
      * Judge whether string is not empty
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 是否不为空
-     * @return whether is not empty
+     * @param s 字符串 string
+     * @return 是否不为空 whether is not empty
      */
     public static boolean isNotEmpty(String s) {
         return !isEmpty(s);
@@ -69,10 +64,8 @@ public class MUtils {
      * 判断字符串是否为空白
      * Judge whether string is blank
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 是否为空白
-     * @return whether is blank
+     * @param s 字符串 string
+     * @return 是否为空白 whether is blank
      */
     public static boolean isBlank(String s) {
         return isEmpty(s) || s.trim().length() == 0;
@@ -82,10 +75,8 @@ public class MUtils {
      * 判断字符串是否不为空白
      * Judge whether string is not blank
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 是否不为空白
-     * @return whether is not blank
+     * @param s 字符串 string
+     * @return 是否不为空白 whether is not blank
      */
     public static boolean isNotBlank(String s) {
         return !isBlank(s);
@@ -95,10 +86,8 @@ public class MUtils {
      * 解析时间字符串为毫秒
      * Parse time string to milliseconds
      * 
-     * @param s 时间字符串，格式如 1ms 1s 1m 1h 1d 1M 1y
-     * @param s time string, format like 1ms 1s 1m 1h 1d 1M 1y
-     * @return 毫秒数
-     * @return milliseconds
+     * @param s 时间字符串，格式如 1ms 1s 1m 1h 1d 1M 1y time string, format like 1ms 1s 1m 1h 1d 1M 1y
+     * @return 毫秒数 milliseconds
      */
     public static long parseTimeToMs(String s) {
         if (isEmpty(s)) {
@@ -117,14 +106,10 @@ public class MUtils {
      * 截取字符串
      * Substring
      * 
-     * @param s 字符串
-     * @param s string
-     * @param start 开始位置
-     * @param start start position
-     * @param end 结束位置
-     * @param end end position
-     * @return 截取后的字符串
-     * @return substring
+     * @param s 字符串 string
+     * @param start 开始位置 start position
+     * @param end 结束位置 end position
+     * @return 截取后的字符串 substring
      */
     public static String substring(String s, int start, int end) {
         if (isEmpty(s)) {
@@ -151,10 +136,8 @@ public class MUtils {
      * 首字母大写
      * Capitalize first letter
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 首字母大写后的字符串
-     * @return string with first letter capitalized
+     * @param s 字符串 string
+     * @return 首字母大写后的字符串 string with first letter capitalized
      */
     public static String upperCaseFirstOne(String s) {
         if (isEmpty(s)) {
@@ -167,10 +150,8 @@ public class MUtils {
      * 首字母小写
      * Lowercase first letter
      * 
-     * @param s 字符串
-     * @param s string
-     * @return 首字母小写后的字符串
-     * @return string with first letter lowercase
+     * @param s 字符串 string
+     * @return 首字母小写后的字符串 string with first letter lowercase
      */
     public static String lowerCaseFirstOne(String s) {
         if (isEmpty(s)) {
@@ -183,10 +164,8 @@ public class MUtils {
      * MD5加密
      * MD5 encryption
      * 
-     * @param s 字符串
-     * @param s string
-     * @return MD5加密后的字符串
-     * @return MD5 encrypted string
+     * @param s 字符串 string
+     * @return MD5加密后的字符串 MD5 encrypted string
      */
     public static String md5(String s) {
         if (isEmpty(s)) {
@@ -200,12 +179,9 @@ public class MUtils {
      * 文件MD5加密
      * File MD5 encryption
      * 
-     * @param file 文件
-     * @param file file
-     * @return MD5加密后的字符串
-     * @return MD5 encrypted string
-     * @throws IOException 异常
-     * @throws IOException exception
+     * @param file 文件 file
+     * @return MD5加密后的字符串 MD5 encrypted string
+     * @throws IOException 异常 IOException exception
      */
     public static String md5(MultipartFile file) throws IOException {
         if (file == null) {
@@ -220,10 +196,8 @@ public class MUtils {
      * 驼峰命名转换为下划线命名
      * Convert camel case to underscore case
      * 
-     * @param s 驼峰命名的字符串
-     * @param s camel case string
-     * @return 下划线命名的字符串
-     * @return underscore case string
+     * @param s 驼峰命名的字符串 camel case string
+     * @return 下划线命名的字符串 underscore case string
      */
     public static String mappingCamelCaseToUnderscore(String s) {
         if (isEmpty(s)) {
@@ -240,10 +214,8 @@ public class MUtils {
      * 拼接处理器方法的URI
      * Concatenate handler method URI
      * 
-     * @param handlerMethod 处理器方法
-     * @param handlerMethod handler method
-     * @return 拼接后的URI
-     * @return concatenated URI
+     * @param handlerMethod 处理器方法 handler method
+     * @return 拼接后的URI concatenated URI
      */
     public static String concatHandlerMethodUri(HandlerMethod handlerMethod) {
         if (handlerMethod == null) {
@@ -271,10 +243,8 @@ public class MUtils {
      * 获取处理器方法的HTTP方法
      * Get HTTP method of handler method
      * 
-     * @param handlerMethod 处理器方法
-     * @param handlerMethod handler method
-     * @return HTTP方法，如 get、post、put、delete
-     * @return HTTP method, such as get, post, put, delete
+     * @param handlerMethod 处理器方法 handler method
+     * @return HTTP方法，如 get、post、put、delete HTTP method, such as get, post, put, delete
      */
     public static String getHandlerMethodMethod(HandlerMethod handlerMethod) {
         if (handlerMethod == null) {

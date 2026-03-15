@@ -36,8 +36,7 @@ public class RdUtil {
      * 构造函数
      * Constructor
      * 
-     * @param redissonClient Redisson 客户端
-     * @param redissonClient Redisson client
+     * @param redissonClient Redisson 客户端 Redisson client
      */
     public RdUtil(RedissonClient redissonClient) {
         this.redissonClient = redissonClient;
@@ -47,16 +46,11 @@ public class RdUtil {
      * 获取分布式锁
      * Get distributed lock
      * 
-     * @param lockKey 锁的键
-     * @param lockKey lock key
-     * @param waitTime 等待时间
-     * @param waitTime wait time
-     * @param leaseTime 租期时间
-     * @param leaseTime lease time
-     * @param timeUnit 时间单位
-     * @param timeUnit time unit
-     * @return 锁对象
-     * @return lock object
+     * @param lockKey 锁的键 lock key
+     * @param waitTime 等待时间 wait time
+     * @param leaseTime 租期时间 lease time
+     * @param timeUnit 时间单位 time unit
+     * @return 锁对象 lock object
      */
     public RLock lock(String lockKey, long waitTime, long leaseTime, TimeUnit timeUnit) {
         // 获取锁对象
@@ -76,10 +70,8 @@ public class RdUtil {
      * 获取分布式锁（使用默认参数）
      * Get distributed lock (using default parameters)
      * 
-     * @param lockKey 锁的键
-     * @param lockKey lock key
-     * @return 锁对象
-     * @return lock object
+     * @param lockKey 锁的键 lock key
+     * @return 锁对象 lock object
      */
     public RLock lock(String lockKey) {
         return lock(lockKey, waitTime, leaseTime, timeUnit);
