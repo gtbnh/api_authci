@@ -16,7 +16,16 @@
     <description>A lightweight authorization framework based on HTTP method and API path
         (e.g., GET:/user/list) for Spring Boot applications.</description>
     <url>https://github.com/gtbnh/api_authci</url>
-
+<!--    <distributionManagement>-->
+<!--        <snapshotRepository>-->
+<!--            <id>ossrh</id>-->
+<!--            <url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
+<!--        </snapshotRepository>-->
+<!--        <repository>-->
+<!--            <id>ossrh</id>-->
+<!--            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
+<!--        </repository>-->
+<!--    </distributionManagement>-->
     <licenses>
         <license>
             <name>Apache-2.0</name>
@@ -135,23 +144,48 @@
                 <version>3.2.7</version>
                 <executions>
                     <execution>
-                        <id>sign-artifacts</id>
+
                         <phase>verify</phase>
                         <goals><goal>sign</goal></goals>
                     </execution>
                 </executions>
+
+                <configuration>
+                    <!-- 关键1：强制使用我们之前生成的 RSA 4096 密钥（防止用错 ed25519） -->
+                    <keyname>0D4CD864DEA526C2</keyname>
+
+                    <!-- 关键2：非交互模式（Windows + Maven 必备） -->
+                    <gpgArguments>
+                        <arg>--pinentry-mode=loopback</arg>
+                    </gpgArguments>
+
+                    <!-- 关键3：彻底删除这行！ -->
+                    <!-- <passphrase>你的密码</passphrase>  ← 删掉！ -->
+                </configuration>
             </plugin>
 
+
+
             <!-- 关键：Nexus Staging 插件，用于上传到 Sonatype staging 并 close/release -->
+<!--            <plugin>-->
+<!--                <groupId>org.sonatype.plugins</groupId>-->
+<!--                <artifactId>nexus-staging-maven-plugin</artifactId>-->
+<!--                <version>1.7.0</version>  &lt;!&ndash; 最新稳定版，检查 https://mvnrepository.com/artifact/org.sonatype.plugins/nexus-staging-maven-plugin &ndash;&gt;-->
+<!--                <extensions>true</extensions>-->
+<!--                <configuration>-->
+<!--                    <serverId>central</serverId>           &lt;!&ndash; 对应 settings.xml 的 <id>central</id> &ndash;&gt;-->
+<!--                    <nexusUrl>https://s01.oss.sonatype.org</nexusUrl>  &lt;!&ndash; 注意：2025年后用 s01 而非 ossrh &ndash;&gt;-->
+<!--                    <autoReleaseAfterClose>true</autoReleaseAfterClose>  &lt;!&ndash; 自动 release，省一步手动 &ndash;&gt;-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+
             <plugin>
-                <groupId>org.sonatype.plugins</groupId>
-                <artifactId>nexus-staging-maven-plugin</artifactId>
-                <version>1.7.0</version>  <!-- 最新稳定版，检查 https://mvnrepository.com/artifact/org.sonatype.plugins/nexus-staging-maven-plugin -->
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.9.0</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <serverId>central</serverId>           <!-- 对应 settings.xml 的 <id>central</id> -->
-                    <nexusUrl>https://s01.oss.sonatype.org</nexusUrl>  <!-- 注意：2025年后用 s01 而非 ossrh -->
-                    <autoReleaseAfterClose>true</autoReleaseAfterClose>  <!-- 自动 release，省一步手动 -->
+                    <publishingServerId>central</publishingServerId>
                 </configuration>
             </plugin>
 

@@ -103,6 +103,55 @@ String tokenWithPayload = AAUtil.getToken(loginId, payload);
 
 框架会自动拦截请求并验证权限，无需手动调用。
 
+### 6. 自定义权限校验规则
+
+```java
+import com.ci2.api_authci.intf.PermValidator;
+import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
+
+import java.util.List;
+
+@Component
+public class CustomPermValidator implements PermValidator {
+    @Override
+    public boolean isPermitted(String method, String uri, String perm) {
+        // 自定义权限校验逻辑
+        // 示例：支持通配符匹配
+        if (perm.equals("*:/**")) {
+            return true;
+        }
+        
+        String[] permParts = perm.split(":");
+        String permMethod = permParts[0];
+        String permUri = permParts[1];
+        
+        // 方法匹配
+        if (!permMethod.equals("*") && !permMethod.equalsIgnoreCase(method)) {
+            return false;
+        }
+        
+        // URI匹配（支持简单的通配符）
+        if (permUri.endsWith("/**")) {
+            String prefix = permUri.substring(0, permUri.length() - 3);
+            return uri.startsWith(prefix);
+        } else if (permUri.endsWith("*")) {
+            String prefix = permUri.substring(0, permUri.length() - 1);
+            return uri.startsWith(prefix);
+        }
+        
+        return permUri.equals(uri);
+    }
+    
+    @Override
+    public String getPerm(HandlerMethod handlerMethod) {
+        // 自定义权限生成逻辑
+        // 可以根据处理器方法的注解、类名等生成权限字符串
+        return PermValidator.super.getPerm(handlerMethod);
+    }
+}
+```
+
 ## 核心功能 Core Features
 
 ### Token 管理
@@ -116,7 +165,8 @@ String tokenWithPayload = AAUtil.getToken(loginId, payload);
 
 - **基于路径的权限控制**：通过 HTTP 方法和 API 路径进行权限验证
 - **公共资源配置**：支持配置不需要鉴权的公共资源路径
-- **自定义权限验证**：通过实现 `PermValidator` 接口自定义权限验证逻辑
+- **自定义权限验证**：通过实现 `ApiAuthciIntf` 接口自定义权限获取逻辑
+- **自定义权限校验规则**：通过实现 `PermValidator` 接口可自定义权限校验规则和生成逻辑
 
 ### 多设备管理
 
@@ -187,7 +237,4 @@ Apache-2.0
 
 欢迎提交 Issue 和 Pull Request！
 
-## 联系 Contact
 
-- GitHub: [https://github.com/gtbnh/api_authci](https://github.com/gtbnh/api_authci)
-- Email: xyxx12684@gmail.com

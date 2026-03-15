@@ -368,12 +368,14 @@ public class AAUtil {
             // 生成JWT token
             // Generate JWT token
             JWT jwt = JWT.create()
-                    .setExpiresAt(new Date(System.currentTimeMillis() + apiAuthciProperty.getExpiration()))
                     .setPayload(TokenData.class.getSimpleName(), payload);
             if (apiAuthciProperty.getAlgorithmId()==null) {
                 jwt.setKey(apiAuthciProperty.getSecretKey().getBytes());
             }else {
                 jwt.setSigner(apiAuthciProperty.getAlgorithmId(), apiAuthciProperty.getSecretKey().getBytes());
+            }
+            if (apiAuthciProperty.getExpiration()!=-1){
+                jwt.setExpiresAt(new Date(System.currentTimeMillis() + apiAuthciProperty.getExpiration()));
             }
 
             return jwt.sign();
