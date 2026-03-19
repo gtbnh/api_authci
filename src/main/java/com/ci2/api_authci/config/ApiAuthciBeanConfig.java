@@ -132,7 +132,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     public ApiAuthciInterceptor apiAuthInterceptor(ApiAuthciProperty apiTokenProperty,
                                                    ApiAuthciIntf apiAuthciIntf,
                                                    PermValidator permValidator) {
-        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf,permValidator);
+        return new ApiAuthciInterceptor(apiTokenProperty, apiAuthciIntf, permValidator);
     }
 
     @Bean
@@ -140,6 +140,7 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     public PermValidator permValidator() {
         return new ApiPermValidator();
     }
+
     /**
      * 添加拦截器
      * Add interceptor
@@ -158,28 +159,30 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     /**
      * 初始化方法
      * Initialization method
-     *
      */
     @Override
     public void afterPropertiesSet() {
+        if (!apiAuthciProperty.isEnabled()) {
+            return;
+        }
+
         boolean pass = false;
         // 检查配置的有效性
         // Check configuration validity
-
         try {
+
             redissonClient.getBucket("ping").get();
             pass = true;
+
         } catch (Exception e) {
-
-            if (ApiAuthciProperty.TokenType.uuid.equals(apiAuthciProperty.getTokenType())) {
-                e.printStackTrace(System.out);
-                throw new NotRedisException();
+            if (apiAuthciProperty.isUUIDTokenType()) {
+//                e.printStackTrace(System.out);
+                throw new NotRedisException(e);
             }
-
         }
 
 
-        if (ApiAuthciProperty.TokenType.jwt.equals(apiAuthciProperty.getTokenType())
+        if (apiAuthciProperty.isJwtTokenType()
                 && MUtils.isBlank(apiAuthciProperty.getSecretKey())) {
             throw new IllegalArgumentException("use the token type of jwt must have a secret key");
         }
@@ -241,9 +244,6 @@ public class ApiAuthciBeanConfig implements InitializingBean, WebMvcConfigurer {
     public RdUtil rdUtil() {
         return new RdUtil(redissonClient);
     }
-
-
-
 
 
 }

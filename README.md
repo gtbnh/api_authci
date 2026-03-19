@@ -19,7 +19,7 @@ A lightweight authorization framework based on HTTP method and API path (e.g., G
 <dependency>
     <groupId>io.github.gtbnh</groupId>
     <artifactId>api_authci</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 

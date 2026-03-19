@@ -89,6 +89,16 @@ public class ApiAuthciProperty {
         return expiration;
     }
 
+    public boolean isThisTokenType(TokenType tokenType) {
+        return this.tokenType.equals(tokenType);
+    }
+    public boolean isJwtTokenType() {
+        return tokenType.equals(TokenType.jwt);
+    }
+    public boolean isUUIDTokenType() {
+        return tokenType.equals(TokenType.uuid);
+    }
+
     /**
      * 请求头配置类
      * Request header configuration class
